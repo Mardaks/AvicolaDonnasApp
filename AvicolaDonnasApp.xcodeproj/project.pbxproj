@@ -8,14 +8,18 @@
 
 /* Begin PBXBuildFile section */
 		F3A204E22DF07DB70083DC88 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = F3A204E12DF07DB70083DC88 /* FirebaseAnalytics */; };
+		F3A2051E2DF0EA2F0083DC88 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = F3A2051D2DF0EA2F0083DC88 /* FirebaseAuth */; };
+		F3A205202DF0EA2F0083DC88 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = F3A2051F2DF0EA2F0083DC88 /* FirebaseCore */; };
+		F3A205222DF0EA2F0083DC88 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = F3A205212DF0EA2F0083DC88 /* FirebaseFirestore */; };
+		F3A205242DF0EA2F0083DC88 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = F3A205232DF0EA2F0083DC88 /* FirebaseStorage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		F3305D772DDBA8BE00F0EAC7 /* AvicolaDonnasApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AvicolaDonnasApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F3A205072DF0B3AB0083DC88 /* AvicolaDonnasApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = AvicolaDonnasApp.app; path = "/Users/victormartinez/Documents/Desarrollo iOS/AvicolaDonnasApp/build/Debug-iphoneos/AvicolaDonnasApp.app"; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		F3305D792DDBA8BE00F0EAC7 /* AvicolaDonnasApp */ = {
+		F3A2050D2DF0B3EA0083DC88 /* AvicolaDonnasApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AvicolaDonnasApp;
 			sourceTree = "<group>";
@@ -28,6 +32,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				F3A204E22DF07DB70083DC88 /* FirebaseAnalytics in Frameworks */,
+				F3A205222DF0EA2F0083DC88 /* FirebaseFirestore in Frameworks */,
+				F3A205202DF0EA2F0083DC88 /* FirebaseCore in Frameworks */,
+				F3A205242DF0EA2F0083DC88 /* FirebaseStorage in Frameworks */,
+				F3A2051E2DF0EA2F0083DC88 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -37,17 +45,8 @@
 		F3305D6E2DDBA8BE00F0EAC7 = {
 			isa = PBXGroup;
 			children = (
-				F3305D792DDBA8BE00F0EAC7 /* AvicolaDonnasApp */,
-				F3305D782DDBA8BE00F0EAC7 /* Products */,
+				F3A2050D2DF0B3EA0083DC88 /* AvicolaDonnasApp */,
 			);
-			sourceTree = "<group>";
-		};
-		F3305D782DDBA8BE00F0EAC7 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				F3305D772DDBA8BE00F0EAC7 /* AvicolaDonnasApp.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -66,14 +65,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				F3305D792DDBA8BE00F0EAC7 /* AvicolaDonnasApp */,
+				F3A2050D2DF0B3EA0083DC88 /* AvicolaDonnasApp */,
 			);
 			name = AvicolaDonnasApp;
 			packageProductDependencies = (
 				F3A204E12DF07DB70083DC88 /* FirebaseAnalytics */,
+				F3A2051D2DF0EA2F0083DC88 /* FirebaseAuth */,
+				F3A2051F2DF0EA2F0083DC88 /* FirebaseCore */,
+				F3A205212DF0EA2F0083DC88 /* FirebaseFirestore */,
+				F3A205232DF0EA2F0083DC88 /* FirebaseStorage */,
 			);
 			productName = AvicolaDonnasApp;
-			productReference = F3305D772DDBA8BE00F0EAC7 /* AvicolaDonnasApp.app */;
+			productReference = F3A205072DF0B3AB0083DC88 /* AvicolaDonnasApp.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -104,7 +107,7 @@
 				F3A204E02DF07DB70083DC88 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = F3305D782DDBA8BE00F0EAC7 /* Products */;
+			productRefGroup = F3305D6E2DDBA8BE00F0EAC7;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -350,6 +353,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F3A204E02DF07DB70083DC88 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAnalytics;
+		};
+		F3A2051D2DF0EA2F0083DC88 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F3A204E02DF07DB70083DC88 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		F3A2051F2DF0EA2F0083DC88 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F3A204E02DF07DB70083DC88 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		F3A205212DF0EA2F0083DC88 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F3A204E02DF07DB70083DC88 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		F3A205232DF0EA2F0083DC88 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F3A204E02DF07DB70083DC88 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
