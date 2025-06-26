@@ -14,8 +14,8 @@ final class StockViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var currentDayStock: DailyStock?
     @Published var stockHistory: [DailyStock] = []
-    @Published var todayLoadEntries: [LoadEntry] = []
-    @Published var allLoadEntries: [LoadEntry] = []
+    @Published var todayCargoEntries: [CargoEntry] = []
+    @Published var allCargoEntries: [CargoEntry] = []
     @Published var appSettings: AppSettings = AppSettings()
     
     // MARK: - UI State
@@ -39,6 +39,22 @@ final class StockViewModel: ObservableObject {
     
     var todayTotalWeight: Double {
         currentDayStock?.totalWeight ?? 0.0
+    }
+    
+    var todayRosadoPackages: Int {
+        currentDayStock?.rosadoPackages.getTotalPackages() ?? 0
+    }
+    
+    var todayPardoPackages: Int {
+        currentDayStock?.pardoPackages.getTotalPackages() ?? 0
+    }
+    
+    var todayRosadoWeight: Double {
+        currentDayStock?.rosadoPackages.getTotalWeight() ?? 0.0
+    }
+    
+    var todayPardoWeight: Double {
+        currentDayStock?.pardoPackages.getTotalWeight() ?? 0.0
     }
     
     var isDayOpen: Bool {
@@ -69,7 +85,7 @@ final class StockViewModel: ObservableObject {
             await loadStockHistory()
             
             // Cargar movimientos de hoy
-            await loadTodayLoadEntries()
+            await loadTodayCargoEntries()
             
         } catch {
             await handleError(error)
@@ -122,9 +138,7 @@ final class StockViewModel: ObservableObject {
         guard var stock = currentDayStock else { return }
         
         do {
-            stock.updatedAt = Date()
-            stock.totalPackages = stock.packages.getTotalPackages()
-            stock.totalWeight = stock.packages.getTotalWeight()
+            stock.updateTotals()
             
             try await firebaseManager.saveDailyStock(stock)
             currentDayStock = stock
@@ -133,39 +147,43 @@ final class StockViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Load Entry Methods
-    func addLoadEntry(packages: PackageInventory, supplier: String, notes: String? = nil, type: LoadType = .incoming) async {
+    // MARK: - Cargo Entry Methods (Nuevos métodos para tipos de huevo)
+    func addCargoEntry(rosadoPackages: PackageInventory = PackageInventory(),
+                     pardoPackages: PackageInventory = PackageInventory(),
+                     supplier: String,
+                     notes: String? = nil,
+                     type: LoadType = .incoming) async {
         do {
-            let entry = LoadEntry(
+            let entry = CargoEntry(
                 date: currentDateString,
-                packages: packages,
+                rosadoPackages: rosadoPackages,
+                pardoPackages: pardoPackages,
                 type: type,
                 supplier: supplier,
                 notes: notes
             )
             
             // Guardar el movimiento
-            try await firebaseManager.saveLoadEntry(entry)
+            try await firebaseManager.saveCargoEntry(entry)
             
             // Actualizar el stock del día actual
             if var currentStock = currentDayStock {
                 if type == .incoming {
-                    currentStock.packages.addLoad(packages)
+                    currentStock.addLoad(rosadoPackages, type: .rosado)
+                    currentStock.addLoad(pardoPackages, type: .pardo)
                 } else if type == .outgoing {
                     // Para salidas, restar del stock
-                    subtractFromStock(&currentStock.packages, packages: packages)
+                    subtractFromStock(&currentStock.rosadoPackages, packages: rosadoPackages)
+                    subtractFromStock(&currentStock.pardoPackages, packages: pardoPackages)
+                    currentStock.updateTotals()
                 }
-                
-                currentStock.updatedAt = Date()
-                currentStock.totalPackages = currentStock.packages.getTotalPackages()
-                currentStock.totalWeight = currentStock.packages.getTotalWeight()
                 
                 try await firebaseManager.saveDailyStock(currentStock)
                 currentDayStock = currentStock
             }
             
             // Recargar movimientos de hoy
-            await loadTodayLoadEntries()
+            await loadTodayCargoEntries()
             
             // Agregar proveedor a la lista si no existe
             if type == .incoming && !supplier.isEmpty && !appSettings.frequentSuppliers.contains(supplier) {
@@ -178,17 +196,31 @@ final class StockViewModel: ObservableObject {
         }
     }
     
-    func loadTodayLoadEntries() async {
+    // Método de conveniencia para agregar solo un tipo de huevo
+    func addCargoEntry(packages: PackageInventory,
+                     eggType: EggType,
+                     supplier: String,
+                     notes: String? = nil,
+                     type: LoadType = .incoming) async {
+        switch eggType {
+        case .rosado:
+            await addCargoEntry(rosadoPackages: packages, supplier: supplier, notes: notes, type: type)
+        case .pardo:
+            await addCargoEntry(pardoPackages: packages, supplier: supplier, notes: notes, type: type)
+        }
+    }
+    
+    func loadTodayCargoEntries() async {
         do {
-            todayLoadEntries = try await firebaseManager.fetchLoadEntries(for: currentDateString)
+            todayCargoEntries = try await firebaseManager.fetchCargoEntries(for: currentDateString)
         } catch {
             await handleError(error)
         }
     }
     
-    func loadAllLoadEntries() async {
+    func loadAllCargoEntries() async {
         do {
-            allLoadEntries = try await firebaseManager.fetchAllLoadEntries()
+            allCargoEntries = try await firebaseManager.fetchAllCargoEntries()
         } catch {
             await handleError(error)
         }
@@ -215,9 +247,7 @@ final class StockViewModel: ObservableObject {
     func updateStockForDate(_ stock: DailyStock) async {
         do {
             var updatedStock = stock
-            updatedStock.updatedAt = Date()
-            updatedStock.totalPackages = updatedStock.packages.getTotalPackages()
-            updatedStock.totalWeight = updatedStock.packages.getTotalWeight()
+            updatedStock.updateTotals()
             
             try await firebaseManager.saveDailyStock(updatedStock)
             
@@ -235,34 +265,48 @@ final class StockViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Stock Manipulation Methods
+    func updateStockForType(_ eggType: EggType, packages: PackageInventory) async {
+        guard var stock = currentDayStock else { return }
+        
+        stock.setPackagesForType(eggType, packages: packages)
+        await updateCurrentDayStock()
+    }
+    
+    func getStockForType(_ eggType: EggType) -> PackageInventory {
+        guard let stock = currentDayStock else { return PackageInventory() }
+        return stock.getPackagesForType(eggType)
+    }
+    
     // MARK: - Day Close Methods
     func closeCurrentDay() async {
         guard var stock = currentDayStock else { return }
         
         do {
             // Crear entrada de cierre
-            let closeEntry = LoadEntry(
+            let closeEntry = CargoEntry(
                 date: currentDateString,
-                packages: stock.packages,
+                rosadoPackages: stock.rosadoPackages,
+                pardoPackages: stock.pardoPackages,
                 type: .dayClose,
                 supplier: "Sistema",
                 notes: "Cierre automático del día"
             )
             
-            try await firebaseManager.saveLoadEntry(closeEntry)
+            try await firebaseManager.saveCargoEntry(closeEntry)
             
             // Marcar día como cerrado
             stock.isClosed = true
             stock.isCurrentDay = false
             stock.closedAt = Date()
-            stock.updatedAt = Date()
+            stock.updateTotals()
             
             try await firebaseManager.saveDailyStock(stock)
             currentDayStock = stock
             
             // Recargar datos
             await loadStockHistory()
-            await loadTodayLoadEntries()
+            await loadTodayCargoEntries()
             
         } catch {
             await handleError(error)
@@ -274,7 +318,7 @@ final class StockViewModel: ObservableObject {
             if var stock = try await firebaseManager.fetchDailyStock(for: date) {
                 stock.isClosed = false
                 stock.closedAt = nil
-                stock.updatedAt = Date()
+                stock.updateTotals()
                 
                 if date == currentDateString {
                     stock.isCurrentDay = true
@@ -293,7 +337,7 @@ final class StockViewModel: ObservableObject {
     func generateReport(type: ReportType, startDate: String, endDate: String) async -> ReportData? {
         do {
             let dailyStocks = try await firebaseManager.fetchDailyStocks(from: startDate, to: endDate)
-            let loadEntries = try await firebaseManager.fetchLoadEntries(from: startDate, to: endDate)
+            let cargoEntries = try await firebaseManager.fetchCargoEntries(from: startDate, to: endDate)
             
             let dateRange = "\(startDate) - \(endDate)"
             let title = "\(type.displayName) - \(dateRange)"
@@ -304,13 +348,28 @@ final class StockViewModel: ObservableObject {
                 startDate: startDate,
                 endDate: endDate,
                 dailyStocks: dailyStocks,
-                loadEntries: loadEntries,
+                cargoEntries: cargoEntries,
                 reportType: type
             )
         } catch {
             await handleError(error)
             return nil
         }
+    }
+    
+    // MARK: - Statistics Methods
+    func getEggTypeStatistics() -> [(type: EggType, packages: Int, weight: Double)] {
+        guard let stock = currentDayStock else { return [] }
+        
+        return [
+            (type: .rosado, packages: stock.rosadoPackages.getTotalPackages(), weight: stock.rosadoPackages.getTotalWeight()),
+            (type: .pardo, packages: stock.pardoPackages.getTotalPackages(), weight: stock.pardoPackages.getTotalWeight())
+        ].filter { $0.packages > 0 }
+    }
+    
+    func getWeightDistribution(for eggType: EggType) -> [(weight: Int, count: Int)] {
+        let packages = getStockForType(eggType)
+        return packages.getWeightSummary()
     }
     
     // MARK: - Utility Methods
@@ -339,8 +398,25 @@ final class StockViewModel: ObservableObject {
         return true
     }
     
+    func validateCargoEntry(rosadoPackages: PackageInventory, pardoPackages: PackageInventory) -> Bool {
+        return validatePackageInput(rosadoPackages) && validatePackageInput(pardoPackages)
+    }
+    
     func getPackageDecimalString(_ weight: Int, decimal: Int) -> String {
         return "\(weight).\(decimal)"
+    }
+    
+    func hasStockForType(_ eggType: EggType) -> Bool {
+        return getStockForType(eggType).hasStock()
+    }
+    
+    // MARK: - Conversion Methods (para compatibilidad)
+    func convertOldPackageInventoryToRosado(_ packages: PackageInventory) async {
+        // Método para migrar datos antiguos si es necesario
+        guard var stock = currentDayStock else { return }
+        stock.rosadoPackages = packages
+        stock.updateTotals()
+        await updateCurrentDayStock()
     }
     
     // MARK: - Error Handling
@@ -362,6 +438,6 @@ final class StockViewModel: ObservableObject {
     
     func refreshCurrentStock() async {
         await loadCurrentDayStock()
-        await loadTodayLoadEntries()
+        await loadTodayCargoEntries()
     }
 }

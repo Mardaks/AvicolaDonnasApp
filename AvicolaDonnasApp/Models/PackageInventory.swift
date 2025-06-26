@@ -54,7 +54,9 @@ struct PackageInventory: Codable {
         }
     }
     
-    // Método para agregar carga
+    // MÉTODOS PARA AGREGAR CARGA
+    
+    // Método original - mantener compatibilidad
     mutating func addLoad(_ newLoad: PackageInventory) {
         for i in 0..<10 {
             kg7[i] += newLoad.kg7[i]
@@ -65,6 +67,12 @@ struct PackageInventory: Codable {
             kg12[i] += newLoad.kg12[i]
             kg13[i] += newLoad.kg13[i]
         }
+    }
+    
+    // NUEVO MÉTODO - Para compatibilidad con DailyStock
+    mutating func addPackages(_ newPackages: PackageInventory) {
+        // Este método es igual que addLoad, pero con nombre diferente
+        addLoad(newPackages)
     }
     
     // Método para obtener array por peso

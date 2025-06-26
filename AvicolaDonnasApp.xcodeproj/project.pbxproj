@@ -15,7 +15,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		F3A205072DF0B3AB0083DC88 /* AvicolaDonnasApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = AvicolaDonnasApp.app; path = "/Users/victormartinez/Documents/Desarrollo iOS/AvicolaDonnasApp/build/Debug-iphoneos/AvicolaDonnasApp.app"; sourceTree = "<absolute>"; };
+		F3A205362E0CC6C90083DC88 /* AvicolaDonnasApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AvicolaDonnasApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -46,6 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				F3A2050D2DF0B3EA0083DC88 /* AvicolaDonnasApp */,
+				F3A205362E0CC6C90083DC88 /* AvicolaDonnasApp.app */,
 			);
 			sourceTree = "<group>";
 		};
@@ -76,7 +77,7 @@
 				F3A205232DF0EA2F0083DC88 /* FirebaseStorage */,
 			);
 			productName = AvicolaDonnasApp;
-			productReference = F3A205072DF0B3AB0083DC88 /* AvicolaDonnasApp.app */;
+			productReference = F3A205362E0CC6C90083DC88 /* AvicolaDonnasApp.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

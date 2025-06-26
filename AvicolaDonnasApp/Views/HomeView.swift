@@ -6,50 +6,100 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct HomeView: View {
-    
-    /*
-     Variables
-     */
-    
     
     var body: some View {
         NavigationView {
             VStack {
                 VStack {
-                    Image("logoAvDonnas").resizable().frame(width: 200, height: 200).cornerRadius(100)
-                    Text("Avicola Donna's").font(.system(size: 40, weight: .bold, design: .serif))
+                    Image("logoAvDonnas")
+                        .resizable()
+                        .frame(width: 200, height: 200)
+                        .cornerRadius(100)
+                    Text("Avícola Donna's")
+                        .font(.system(size: 40, weight: .bold, design: .serif))
                     Divider().frame(width: 330)
                 }.padding(.bottom, 40)
-                VStack(spacing: 10) {
-                    NavigationLink(destination: InventoryView()) {
-                        Text("Ver Inventario")
+                
+                VStack(spacing: 15) {
+                    NavigationLink(destination: CurrentStockView()) {
+                        Text("Stock Actual")
                             .frame(width: 270, height: 50)
                             .background(.blue)
-                            .font(.title)
-                            .foregroundStyle(.white).bold()
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .bold()
                             .cornerRadius(8)
                     }
+                    
                     NavigationLink(destination: RegisterCargoView()) {
                         Text("Registrar Carga")
                             .frame(width: 270, height: 50)
-                            .background(.yellow)
-                            .font(.title)
-                            .foregroundStyle(.white).bold()
+                            .background(.green)
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .bold()
                             .cornerRadius(8)
                     }
+                    
+                    NavigationLink(destination: HistoryView()) {
+                        Text("Historial de Inventario")
+                            .frame(width: 270, height: 50)
+                            .background(.orange)
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .bold()
+                            .cornerRadius(8)
+                    }
+                    
                     NavigationLink(destination: RegisterEndDayView()) {
                         Text("Registrar Fin de Día")
                             .frame(width: 270, height: 50)
-                            .background(.gray)
-                            .font(.title)
-                            .foregroundStyle(.white).bold()
+                            .background(.red)
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .bold()
+                            .cornerRadius(8)
+                    }
+                    
+                    NavigationLink(destination: ReportsView()) {
+                        Text("Reportes")
+                            .frame(width: 270, height: 50)
+                            .background(.purple)
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .bold()
                             .cornerRadius(8)
                     }
                 }
             }
-        }.navigationBarHidden(true)
+        }
+        .onAppear {
+            // Primero probar conectividad básica
+            Task {
+                do {
+                    let url = URL(string: "https://www.google.com")!
+                    let (_, response) = try await URLSession.shared.data(from: url)
+                    if let httpResponse = response as? HTTPURLResponse {
+                        print("🌐 Internet funciona - Status: \(httpResponse.statusCode)")
+                    }
+                } catch {
+                    print("❌ Sin internet: \(error)")
+                }
+                
+                // Luego probar Firebase
+                do {
+                    let testData = ["test": "hello firebase", "timestamp": Date()]
+                    try await Firestore.firestore().collection("test").addDocument(data: testData)
+                    print("✅ Firebase funciona!")
+                } catch {
+                    print("❌ Error Firebase: \(error)")
+                }
+            }
+        }
+        .navigationBarHidden(true)
     }
 }
 
