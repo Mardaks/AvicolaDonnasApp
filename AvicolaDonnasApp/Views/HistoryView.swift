@@ -8,7 +8,9 @@
 import SwiftUI
 
 struct HistoryView: View {
-    @StateObject private var stockViewModel = StockViewModel()
+    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
+    @ObservedObject private var stockViewModel = StockViewModel.shared
+    
     @State private var selectedSegment = 0 // 0: Por días, 1: Por movimientos
     @State private var selectedDateRange = DateRange.lastWeek
     @State private var customStartDate = Date()
@@ -55,6 +57,16 @@ struct HistoryView: View {
                             .font(.title3)
                     }
                 }
+                
+                // ✅ AGREGAR BOTÓN DE REFRESH
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Actualizar") {
+                        Task {
+                            await loadData()
+                        }
+                    }
+                    .disabled(stockViewModel.isLoading)
+                }
             }
             .sheet(isPresented: $showingFilters) {
                 filtersSheet
@@ -65,6 +77,9 @@ struct HistoryView: View {
             .refreshable {
                 await loadData()
             }
+        }
+        .onAppear {
+            print("📱 HistoryView apareció")
         }
     }
     
@@ -91,6 +106,9 @@ struct HistoryView: View {
                 
                 TextField(selectedSegment == 0 ? "Buscar por fecha..." : "Buscar por proveedor...", text: $searchText)
                     .textFieldStyle(PlainTextFieldStyle())
+                    .onChange(of: searchText) { _ in
+                        applyFilters()
+                    }
                 
                 if !searchText.isEmpty {
                     Button(action: {
@@ -158,7 +176,10 @@ struct HistoryView: View {
     private var dailyHistoryView: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                if filteredDailyStocks.isEmpty {
+                if stockViewModel.isLoading {
+                    ProgressView("Cargando historial...")
+                        .padding()
+                } else if filteredDailyStocks.isEmpty {
                     emptyStateView(message: "No hay días registrados en el período seleccionado")
                 } else {
                     // Estadísticas del período
@@ -298,7 +319,10 @@ struct HistoryView: View {
     private var movementsHistoryView: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                if filteredCargoEntries.isEmpty {
+                if stockViewModel.isLoading {
+                    ProgressView("Cargando movimientos...")
+                        .padding()
+                } else if filteredCargoEntries.isEmpty {
                     emptyStateView(message: "No hay movimientos registrados en el período seleccionado")
                 } else {
                     // Resumen de movimientos
@@ -683,9 +707,11 @@ struct HistoryView: View {
     }
     
     private func loadData() async {
+        print("🔄 Cargando datos del historial...")
         await stockViewModel.loadStockHistory()
         await stockViewModel.loadAllCargoEntries()
         applyFilters()
+        print("✅ Datos del historial cargados")
     }
     
     private func applyFilters() {
@@ -735,6 +761,8 @@ struct HistoryView: View {
                 (entry.notes?.localizedCaseInsensitiveContains(searchText) ?? false)
             }
         }
+        
+        print("📊 Filtros aplicados: \(filteredDailyStocks.count) días, \(filteredCargoEntries.count) movimientos")
     }
 }
 

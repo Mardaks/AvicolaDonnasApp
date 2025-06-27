@@ -78,18 +78,8 @@ struct HomeView: View {
         }
         .onAppear {
             // Primero probar conectividad básica
-            Task {
-                do {
-                    let url = URL(string: "https://www.google.com")!
-                    let (_, response) = try await URLSession.shared.data(from: url)
-                    if let httpResponse = response as? HTTPURLResponse {
-                        print("🌐 Internet funciona - Status: \(httpResponse.statusCode)")
-                    }
-                } catch {
-                    print("❌ Sin internet: \(error)")
-                }
-                
-                // Luego probar Firebase
+            Task {                
+                // Probar Firebase
                 do {
                     let testData = ["test": "hello firebase", "timestamp": Date()]
                     try await Firestore.firestore().collection("test").addDocument(data: testData)

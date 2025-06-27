@@ -9,7 +9,10 @@ import SwiftUI
 
 struct DetailHistoryView: View {
     let dayStock: DailyStock
-    @StateObject private var stockViewModel = StockViewModel()
+    
+    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
+    @ObservedObject private var stockViewModel = StockViewModel.shared
+    
     @State private var cargoEntries: [CargoEntry] = []
     @State private var selectedTab = 0 // 0: Resumen, 1: Stock, 2: Movimientos
     @State private var expandedSections: Set<String> = []
@@ -83,6 +86,9 @@ struct DetailHistoryView: View {
         .refreshable {
             await loadMovements()
         }
+        .onAppear {
+            print("📱 DetailHistoryView apareció para: \(dayStock.date)")
+        }
     }
     
     // MARK: - Header del día
@@ -123,6 +129,11 @@ struct DetailHistoryView: View {
                             .background(Color.blue)
                             .foregroundColor(.white)
                             .cornerRadius(6)
+                    }
+                    
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
                     }
                 }
             }
@@ -688,7 +699,10 @@ struct DetailHistoryView: View {
     private var movementsTab: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                if cargoEntries.isEmpty {
+                if isLoading {
+                    ProgressView("Cargando movimientos...")
+                        .padding()
+                } else if cargoEntries.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "tray")
                             .font(.system(size: 60))
@@ -840,7 +854,7 @@ struct DetailHistoryView: View {
     
     // MARK: - Computed Properties
     private var uniqueSuppliersWithStats: [(name: String, packages: Int, deliveries: Int)] {
-        let incomingEntries = cargoEntries.filter { $0.type == .incoming && !$0.supplier.isEmpty && $0.supplier != "Sistema" }
+        let incomingEntries = cargoEntries.filter { $0.type == LoadType.incoming && !$0.supplier.isEmpty && $0.supplier != "Sistema" }
         
         let grouped = Dictionary(grouping: incomingEntries) { $0.supplier }
         
@@ -905,20 +919,19 @@ struct DetailHistoryView: View {
     }
     
     private func loadMovements() async {
+        print("🔄 Cargando movimientos para: \(dayStock.date)")
         isLoading = true
-        await stockViewModel.loadTodayCargoEntries()
-        cargoEntries = await stockViewModel.fetchCargoEntries(for: dayStock.date)
+        cargoEntries = await fetchCargoEntries(for: dayStock.date)
         isLoading = false
+        print("✅ Cargados \(cargoEntries.count) movimientos")
     }
-}
-
-// MARK: - Supporting Extensions
-extension StockViewModel {
-    func fetchCargoEntries(for date: String) async -> [CargoEntry] {
+    
+    // ✅ FUNCIÓN CORREGIDA - Usar FirebaseManager directamente
+    private func fetchCargoEntries(for date: String) async -> [CargoEntry] {
         do {
             return try await FirebaseManager.shared.fetchCargoEntries(for: date)
         } catch {
-            print("Error fetching load entries: \(error)")
+            print("❌ Error fetching cargo entries: \(error)")
             return []
         }
     }

@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct RegisterEndDayView: View {
-    @StateObject private var stockViewModel = StockViewModel()
+    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
+    @ObservedObject private var stockViewModel = StockViewModel.shared
     @State private var showingCloseConfirmation = false
     @State private var showingReopenConfirmation = false
     @State private var closingNotes = ""
@@ -51,9 +52,19 @@ struct RegisterEndDayView: View {
                         dismiss()
                     }
                 }
+                
+                // ✅ AGREGAR BOTÓN DE REFRESH
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Actualizar") {
+                        Task {
+                            await stockViewModel.refreshCurrentStock()
+                        }
+                    }
+                    .disabled(stockViewModel.isLoading)
+                }
             }
             .refreshable {
-                await loadData()
+                await stockViewModel.refreshCurrentStock()
             }
             .alert("Confirmar Cierre de Día", isPresented: $showingCloseConfirmation) {
                 Button("Cancelar", role: .cancel) { }
@@ -86,7 +97,11 @@ struct RegisterEndDayView: View {
             }
         }
         .task {
-            await loadData()
+            // ✅ CARGAR DATOS AL APARECER LA VISTA
+            await stockViewModel.refreshCurrentStock()
+        }
+        .onAppear {
+            print("📱 RegisterEndDayView apareció")
         }
     }
     
@@ -150,6 +165,12 @@ struct RegisterEndDayView: View {
                     .font(.headline)
                     .fontWeight(.semibold)
                 Spacer()
+                
+                // ✅ MOSTRAR ESTADO DE CARGA
+                if stockViewModel.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
             }
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
@@ -169,9 +190,10 @@ struct RegisterEndDayView: View {
                     color: .green
                 )
                 
+                // ✅ USAR PROPIEDADES CALCULADAS CORRECTAMENTE
                 summaryCard(
                     title: "Movimientos",
-                    value: "\(stockViewModel.todayCargoEntries.count)",
+                    value: "\(stockViewModel.todayMovementCount)",
                     subtitle: "registros",
                     icon: "arrow.up.arrow.down",
                     color: .orange
@@ -179,7 +201,7 @@ struct RegisterEndDayView: View {
                 
                 summaryCard(
                     title: "Proveedores",
-                    value: "\(uniqueSuppliers.count)",
+                    value: "\(stockViewModel.todaySupplierCount)",
                     subtitle: "diferentes",
                     icon: "person.2.fill",
                     color: .purple
@@ -418,14 +440,16 @@ struct RegisterEndDayView: View {
     // MARK: - Resumen por proveedor
     @ViewBuilder
     private var supplierSummarySection: some View {
-        if !uniqueSuppliers.isEmpty {
+        let supplierSummary = stockViewModel.getTodaySupplierSummary()
+        
+        if !supplierSummary.isEmpty {
             VStack(spacing: 12) {
                 HStack {
                     Text("Proveedores del Día")
                         .font(.headline)
                         .fontWeight(.semibold)
                     Spacer()
-                    Text("\(uniqueSuppliers.count) proveedores")
+                    Text("\(supplierSummary.count) proveedores")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -545,56 +569,20 @@ struct RegisterEndDayView: View {
         }
     }
     
-    // MARK: - Computed Properties
-    private var uniqueSuppliers: Set<String> {
-        Set(stockViewModel.todayCargoEntries
-            .filter { $0.type == .incoming && !$0.supplier.isEmpty && $0.supplier != "Sistema" }
-            .map { $0.supplier })
-    }
-    
-    private var supplierSummary: [String: (packages: Int, deliveries: Int)] {
-        let incomingEntries = stockViewModel.todayCargoEntries.filter { $0.type == .incoming && !$0.supplier.isEmpty && $0.supplier != "Sistema" }
-        
-        var summary: [String: (packages: Int, deliveries: Int)] = [:]
-        
-        for entry in incomingEntries {
-            if let existing = summary[entry.supplier] {
-                summary[entry.supplier] = (
-                    packages: existing.packages + entry.totalPackages,
-                    deliveries: existing.deliveries + 1
-                )
-            } else {
-                summary[entry.supplier] = (
-                    packages: entry.totalPackages,
-                    deliveries: 1
-                )
-            }
-        }
-        
-        return summary
-    }
-    
     // MARK: - Functions
-    private func loadData() async {
-        await stockViewModel.refreshCurrentStock()
-        await stockViewModel.loadTodayCargoEntries()
-    }
-    
     private func closeDay() async {
         isLoadingAction = true
         
         // Agregar las notas si hay
         if !closingNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // Crear una entrada adicional con las notas
-            let notesEntry = CargoEntry(
-                date: stockViewModel.currentDateString,
-                type: .adjustment,
+            await stockViewModel.addCargoEntry(
+                packages: PackageInventory(),
+                eggType: .rosado,
                 supplier: "Sistema",
-                notes: "Notas de cierre: \(closingNotes)"
+                notes: "Notas de cierre: \(closingNotes)",
+                type: .adjustment
             )
-            
-            // Aquí podrías guardar la entrada de notas
-            await stockViewModel.addCargoEntry(packages: PackageInventory(), eggType: .rosado, supplier: "Sistema", notes: "Notas de cierre: \(closingNotes)", type: .adjustment)
         }
         
         await stockViewModel.closeCurrentDay()
@@ -608,7 +596,6 @@ struct RegisterEndDayView: View {
         isLoadingAction = true
         
         await stockViewModel.reopenDay(stockViewModel.currentDateString)
-        await loadData()
         
         isLoadingAction = false
         successMessage = "El día ha sido reabierto. Puedes continuar registrando movimientos."

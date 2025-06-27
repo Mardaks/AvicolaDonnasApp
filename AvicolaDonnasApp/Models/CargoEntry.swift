@@ -11,13 +11,13 @@ import FirebaseFirestore
 // MARK: - Modelo para cargas registradas (historial de movimientos)
 struct CargoEntry: Codable, Identifiable {
     @DocumentID var id: String?
-    let date: String
-    let rosadoPackages: PackageInventory
-    let pardoPackages: PackageInventory
-    let type: LoadType
-    let supplier: String
-    let notes: String?
-    let timestamp: Date
+    var date: String
+    var rosadoPackages: PackageInventory
+    var pardoPackages: PackageInventory
+    var type: LoadType
+    var supplier: String
+    var notes: String?
+    var timestamp: Date
     
     init(id: String? = nil,
          date: String,
@@ -56,6 +56,32 @@ struct CargoEntry: Codable, Identifiable {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: timestamp)
+    }
+    
+    // Resumen de tipos de huevo en el movimiento
+    var eggTypeSummary: String {
+        let rosadoCount = rosadoPackages.getTotalPackages()
+        let pardoCount = pardoPackages.getTotalPackages()
+        
+        if rosadoCount > 0 && pardoCount > 0 {
+            return "Rosado: \(rosadoCount) • Pardo: \(pardoCount)"
+        } else if rosadoCount > 0 {
+            return "Rosado: \(rosadoCount) paquetes"
+        } else if pardoCount > 0 {
+            return "Pardo: \(pardoCount) paquetes"
+        } else {
+            return "Sin paquetes"
+        }
+    }
+    
+    // Verifica si el movimiento tiene un tipo específico de huevo
+    func hasEggType(_ eggType: EggType) -> Bool {
+        switch eggType {
+        case .rosado:
+            return rosadoPackages.getTotalPackages() > 0
+        case .pardo:
+            return pardoPackages.getTotalPackages() > 0
+        }
     }
 }
 

@@ -11,6 +11,9 @@ import SwiftUI
 @MainActor
 final class StockViewModel: ObservableObject {
     
+    // MARK: - Singleton Pattern (NUEVA IMPLEMENTACIÓN)
+    static let shared = StockViewModel()
+    
     // MARK: - Published Properties
     @Published var currentDayStock: DailyStock?
     @Published var stockHistory: [DailyStock] = []
@@ -23,6 +26,10 @@ final class StockViewModel: ObservableObject {
     @Published var showingError = false
     @Published var errorMessage = ""
     @Published var selectedDate = Date()
+    
+    // ✅ NUEVAS PROPIEDADES PARA ESTADÍSTICAS
+    @Published var todayMovementCount = 0
+    @Published var todaySupplierCount = 0
     
     // MARK: - Computed Properties
     var currentDateString: String {
@@ -65,7 +72,7 @@ final class StockViewModel: ObservableObject {
     private let firebaseManager = FirebaseManager.shared
     
     // MARK: - Initialization
-    init() {
+    private init() {
         Task {
             await loadInitialData()
         }
@@ -75,6 +82,8 @@ final class StockViewModel: ObservableObject {
     func loadInitialData() async {
         isLoading = true
         do {
+            print("🔄 Cargando datos iniciales...")
+            
             // Cargar configuración
             await loadAppSettings()
             
@@ -87,6 +96,11 @@ final class StockViewModel: ObservableObject {
             // Cargar movimientos de hoy
             await loadTodayCargoEntries()
             
+            // ✅ CARGAR ESTADÍSTICAS
+            await loadTodayStatistics()
+            
+            print("✅ Datos iniciales cargados exitosamente")
+            
         } catch {
             await handleError(error)
         }
@@ -98,10 +112,12 @@ final class StockViewModel: ObservableObject {
         do {
             if let settings = try await firebaseManager.fetchAppSettings() {
                 appSettings = settings
+                print("✅ Configuración cargada")
             } else {
                 // Primera vez, crear configuración inicial
                 appSettings = AppSettings()
                 try await firebaseManager.saveAppSettings(appSettings)
+                print("✅ Configuración inicial creada")
             }
         } catch {
             await handleError(error)
@@ -128,6 +144,9 @@ final class StockViewModel: ObservableObject {
                 currentDayStock = DailyStock(date: today)
                 currentDayStock?.isCurrentDay = true
                 try await firebaseManager.saveDailyStock(currentDayStock!)
+                print("✅ Nuevo stock diario creado para \(today)")
+            } else {
+                print("✅ Stock diario cargado para \(today)")
             }
         } catch {
             await handleError(error)
@@ -142,18 +161,21 @@ final class StockViewModel: ObservableObject {
             
             try await firebaseManager.saveDailyStock(stock)
             currentDayStock = stock
+            print("✅ Stock actual actualizado")
         } catch {
             await handleError(error)
         }
     }
     
-    // MARK: - Cargo Entry Methods (Nuevos métodos para tipos de huevo)
+    // MARK: - Cargo Entry Methods
     func addCargoEntry(rosadoPackages: PackageInventory = PackageInventory(),
                      pardoPackages: PackageInventory = PackageInventory(),
                      supplier: String,
                      notes: String? = nil,
                      type: LoadType = .incoming) async {
         do {
+            print("📦 Agregando nuevo movimiento: \(type.displayName)")
+            
             let entry = CargoEntry(
                 date: currentDateString,
                 rosadoPackages: rosadoPackages,
@@ -165,6 +187,7 @@ final class StockViewModel: ObservableObject {
             
             // Guardar el movimiento
             try await firebaseManager.saveCargoEntry(entry)
+            print("✅ Movimiento guardado en Firebase")
             
             // Actualizar el stock del día actual
             if var currentStock = currentDayStock {
@@ -180,15 +203,18 @@ final class StockViewModel: ObservableObject {
                 
                 try await firebaseManager.saveDailyStock(currentStock)
                 currentDayStock = currentStock
+                print("✅ Stock actualizado")
             }
             
-            // Recargar movimientos de hoy
+            // Recargar movimientos y estadísticas
             await loadTodayCargoEntries()
+            await loadTodayStatistics()
             
             // Agregar proveedor a la lista si no existe
             if type == .incoming && !supplier.isEmpty && !appSettings.frequentSuppliers.contains(supplier) {
                 appSettings.frequentSuppliers.append(supplier)
                 try await firebaseManager.saveAppSettings(appSettings)
+                print("✅ Nuevo proveedor agregado a la lista")
             }
             
         } catch {
@@ -212,7 +238,9 @@ final class StockViewModel: ObservableObject {
     
     func loadTodayCargoEntries() async {
         do {
+            print("📋 Cargando movimientos de hoy...")
             todayCargoEntries = try await firebaseManager.fetchCargoEntries(for: currentDateString)
+            print("✅ Cargados \(todayCargoEntries.count) movimientos")
         } catch {
             await handleError(error)
         }
@@ -220,7 +248,24 @@ final class StockViewModel: ObservableObject {
     
     func loadAllCargoEntries() async {
         do {
+            print("📋 Cargando todos los movimientos...")
             allCargoEntries = try await firebaseManager.fetchAllCargoEntries()
+            print("✅ Cargados \(allCargoEntries.count) movimientos totales")
+        } catch {
+            await handleError(error)
+        }
+    }
+    
+    // ✅ NUEVO MÉTODO - Cargar estadísticas del día
+    func loadTodayStatistics() async {
+        do {
+            print("📊 Cargando estadísticas del día...")
+            let (movements, suppliers) = try await firebaseManager.fetchCargoEntriesStats(for: currentDateString)
+            
+            todayMovementCount = movements
+            todaySupplierCount = suppliers
+            
+            print("📊 Estadísticas: \(movements) movimientos, \(suppliers) proveedores")
         } catch {
             await handleError(error)
         }
@@ -230,6 +275,7 @@ final class StockViewModel: ObservableObject {
     func loadStockHistory() async {
         do {
             stockHistory = try await firebaseManager.fetchAllDailyStocks()
+            print("✅ Historial cargado: \(stockHistory.count) días")
         } catch {
             await handleError(error)
         }
@@ -259,6 +305,7 @@ final class StockViewModel: ObservableObject {
             // Si es el día actual, actualizar también
             if stock.date == currentDateString {
                 currentDayStock = updatedStock
+                await loadTodayStatistics() // Actualizar estadísticas
             }
         } catch {
             await handleError(error)
@@ -283,6 +330,8 @@ final class StockViewModel: ObservableObject {
         guard var stock = currentDayStock else { return }
         
         do {
+            print("🔒 Cerrando día actual...")
+            
             // Crear entrada de cierre
             let closeEntry = CargoEntry(
                 date: currentDateString,
@@ -307,6 +356,9 @@ final class StockViewModel: ObservableObject {
             // Recargar datos
             await loadStockHistory()
             await loadTodayCargoEntries()
+            await loadTodayStatistics()
+            
+            print("✅ Día cerrado exitosamente")
             
         } catch {
             await handleError(error)
@@ -315,6 +367,8 @@ final class StockViewModel: ObservableObject {
     
     func reopenDay(_ date: String) async {
         do {
+            print("🔓 Reabriendo día: \(date)")
+            
             if var stock = try await firebaseManager.fetchDailyStock(for: date) {
                 stock.isClosed = false
                 stock.closedAt = nil
@@ -327,6 +381,13 @@ final class StockViewModel: ObservableObject {
                 
                 try await firebaseManager.saveDailyStock(stock)
                 await loadStockHistory()
+                
+                if date == currentDateString {
+                    await loadTodayCargoEntries()
+                    await loadTodayStatistics()
+                }
+                
+                print("✅ Día reabierto exitosamente")
             }
         } catch {
             await handleError(error)
@@ -372,6 +433,38 @@ final class StockViewModel: ObservableObject {
         return packages.getWeightSummary()
     }
     
+    // ✅ NUEVO MÉTODO - Obtener resumen de proveedores
+    func getTodaySupplierSummary() -> [String: (packages: Int, deliveries: Int)] {
+        let incomingEntries = todayCargoEntries.filter {
+            $0.type == .incoming && !$0.supplier.isEmpty && $0.supplier != "Sistema"
+        }
+        
+        var summary: [String: (packages: Int, deliveries: Int)] = [:]
+        
+        for entry in incomingEntries {
+            if let existing = summary[entry.supplier] {
+                summary[entry.supplier] = (
+                    packages: existing.packages + entry.totalPackages,
+                    deliveries: existing.deliveries + 1
+                )
+            } else {
+                summary[entry.supplier] = (
+                    packages: entry.totalPackages,
+                    deliveries: 1
+                )
+            }
+        }
+        
+        return summary
+    }
+    
+    // ✅ NUEVO MÉTODO - Obtener proveedores únicos
+    func getTodayUniqueSuppliers() -> Set<String> {
+        return Set(todayCargoEntries
+            .filter { $0.type == .incoming && !$0.supplier.isEmpty && $0.supplier != "Sistema" }
+            .map { $0.supplier })
+    }
+    
     // MARK: - Utility Methods
     private func subtractFromStock(_ stock: inout PackageInventory, packages: PackageInventory) {
         for weight in stock.packageWeights {
@@ -388,7 +481,6 @@ final class StockViewModel: ObservableObject {
     }
     
     func validatePackageInput(_ packages: PackageInventory) -> Bool {
-        // Validar que no haya valores negativos
         for weight in packages.packageWeights {
             let weightPackages = packages.getPackagesForWeight(weight)
             if weightPackages.contains(where: { $0 < 0 }) {
@@ -410,20 +502,11 @@ final class StockViewModel: ObservableObject {
         return getStockForType(eggType).hasStock()
     }
     
-    // MARK: - Conversion Methods (para compatibilidad)
-    func convertOldPackageInventoryToRosado(_ packages: PackageInventory) async {
-        // Método para migrar datos antiguos si es necesario
-        guard var stock = currentDayStock else { return }
-        stock.rosadoPackages = packages
-        stock.updateTotals()
-        await updateCurrentDayStock()
-    }
-    
     // MARK: - Error Handling
     private func handleError(_ error: Error) async {
         errorMessage = error.localizedDescription
         showingError = true
-        print("StockViewModel Error: \(error)")
+        print("❌ StockViewModel Error: \(error)")
     }
     
     func clearError() {
@@ -433,11 +516,14 @@ final class StockViewModel: ObservableObject {
     
     // MARK: - Refresh Methods
     func refreshAllData() async {
+        print("🔄 Refrescando todos los datos...")
         await loadInitialData()
     }
     
     func refreshCurrentStock() async {
+        print("🔄 Refrescando stock actual...")
         await loadCurrentDayStock()
         await loadTodayCargoEntries()
+        await loadTodayStatistics()
     }
 }

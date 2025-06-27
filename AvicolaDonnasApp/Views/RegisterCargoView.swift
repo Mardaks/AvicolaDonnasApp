@@ -49,12 +49,16 @@ struct RegisterCargoView: View {
     @State private var includePardoEggs = false
     
     // Datos adicionales para el registro
+    @State private var lastSavedTotal = 0
     @State private var supplier = ""
     @State private var notes = ""
     @State private var showingSupplierSheet = false
+    @State private var showingSaveConfirmation = false
+    @State private var showingSuccessAlert = false
+    @State private var isLoading = false
     
-    // ViewModel
-    @StateObject private var stockViewModel = StockViewModel()
+    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
+    @ObservedObject private var stockViewModel = StockViewModel.shared
     
     var body: some View {
         NavigationView {
@@ -70,13 +74,14 @@ struct RegisterCargoView: View {
                         .foregroundColor(supplier.isEmpty ? .blue : .primary)
                     }
                     
-                    TextField("Notas adicionales (opcional)", text: $notes)
+                    TextField("Notas adicionales (opcional)", text: $notes, axis: .vertical)
+                        .lineLimit(2...4)
                 }
                 
                 // Toggle para incluir huevo pardo
                 Section {
                     Toggle("Incluir Huevo Pardo", isOn: $includePardoEggs)
-                        .foregroundColor(Color("pardo"))
+                        .tint(Color("pardo"))
                 }
                 
                 // Sección de huevo rosado
@@ -138,6 +143,17 @@ struct RegisterCargoView: View {
                                 }
                                 .font(.subheadline)
                             }
+                            
+                            // ✅ MOSTRAR PESO TOTAL ESTIMADO
+                            HStack {
+                                Text("Peso estimado:")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(String(format: "%.1f kg", estimatedTotalWeight))
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.blue)
+                            }
                         }
                         .padding(.vertical, 8)
                     }
@@ -147,16 +163,25 @@ struct RegisterCargoView: View {
                 if hasVisibleCategories {
                     Section {
                         Button("Guardar Carga") {
-                            Task {
-                                await savePackages()
-                            }
+                            showingSaveConfirmation = true
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(supplier.isEmpty ? Color.gray : Color.blue)
+                        .background(supplier.isEmpty || isLoading ? Color.gray : Color.blue)
                         .foregroundColor(.white)
                         .cornerRadius(8)
-                        .disabled(supplier.isEmpty)
+                        .disabled(supplier.isEmpty || isLoading)
+                        
+                        if isLoading {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Guardando...")
+                                    .font(.subheadline)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        }
                         
                         Button("Limpiar Todo") {
                             clearAllPackages()
@@ -166,17 +191,37 @@ struct RegisterCargoView: View {
                         .background(Color.red)
                         .foregroundColor(.white)
                         .cornerRadius(8)
+                        .disabled(isLoading)
                     }
                 }
             }
             .navigationTitle("Registrar Carga")
             .navigationBarTitleDisplayMode(.inline)
+            .disabled(isLoading)
             .sheet(isPresented: $showingSupplierSheet) {
                 SupplierSelectionView(
                     selectedSupplier: $supplier,
                     frequentSuppliers: stockViewModel.appSettings.frequentSuppliers
                 )
             }
+            .alert("Confirmar Registro", isPresented: $showingSaveConfirmation) {
+                Button("Cancelar", role: .cancel) { }
+                Button("Guardar") {
+                    Task {
+                        await savePackages()
+                    }
+                }
+            } message: {
+                Text("¿Estás seguro de que quieres registrar esta carga de \(totalPackages) paquetes del proveedor \(supplier)?")
+            }
+            .alert("¡Carga Registrada!", isPresented: $showingSuccessAlert) {
+                Button("OK") { }
+            } message: {
+                Text("La carga se registró exitosamente. Total: \(lastSavedTotal) paquetes.")
+            }
+        }
+        .onAppear {
+            print("📱 RegisterCargoView apareció")
         }
     }
     
@@ -219,6 +264,7 @@ struct RegisterCargoView: View {
                     
                     Toggle(categories[categoryIndex].name.wrappedValue,
                            isOn: categories[categoryIndex].isVisible)
+                        .tint(color)
                 }
             }
         } header: {
@@ -246,6 +292,13 @@ struct RegisterCargoView: View {
                         Image(systemName: icon)
                             .foregroundColor(color)
                         Text("\(categories[categoryIndex].name.wrappedValue) - Total: \(categoryTotal)")
+                        
+                        // ✅ AGREGAR PESO ESTIMADO POR CATEGORÍA
+                        Spacer()
+                        let estimatedWeight = Double(categoryTotal) * Double(categories[categoryIndex].weight.wrappedValue)
+                        Text(String(format: "%.1f kg", estimatedWeight))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -270,6 +323,13 @@ struct RegisterCargoView: View {
         includePardoEggs ? getTotalForCategories(pardoPackageCategories) : 0
     }
     
+    // ✅ NUEVA PROPIEDAD CALCULADA - Peso total estimado
+    private var estimatedTotalWeight: Double {
+        let rosadoWeight = estimatedWeightForCategories(rosadoPackageCategories)
+        let pardoWeight = includePardoEggs ? estimatedWeightForCategories(pardoPackageCategories) : 0.0
+        return rosadoWeight + pardoWeight
+    }
+    
     private func getTotalForCategories(_ categories: [PackageCategory]) -> Int {
         categories
             .filter { $0.isVisible }
@@ -277,20 +337,44 @@ struct RegisterCargoView: View {
             .reduce(0, +)
     }
     
+    // ✅ NUEVA FUNCIÓN - Calcular peso estimado
+    private func estimatedWeightForCategories(_ categories: [PackageCategory]) -> Double {
+        return categories
+            .filter { $0.isVisible }
+            .reduce(0.0) { total, category in
+                let packageCount = category.packages.reduce(0, +)
+                return total + (Double(packageCount) * Double(category.weight))
+            }
+    }
+    
     // MARK: - Functions
     private func savePackages() async {
         guard !supplier.isEmpty else { return }
         
+        print("💾 Iniciando guardado de carga...")
+        print("📦 Proveedor: \(supplier)")
+        print("📊 Total paquetes: \(totalPackages)")
+        
+        isLoading = true
+        
+        let totalToSave = totalPackages
+        let suppplierToShow = supplier
+        
         let rosadoInventory = createPackageInventory(from: rosadoPackageCategories)
         let pardoInventory = includePardoEggs ? createPackageInventory(from: pardoPackageCategories) : PackageInventory()
         
+        // ✅ USAR LoadType EXPLÍCITAMENTE
         await stockViewModel.addCargoEntry(
             rosadoPackages: rosadoInventory,
             pardoPackages: pardoInventory,
             supplier: supplier,
             notes: notes.isEmpty ? nil : notes,
-            type: .incoming
+            type: LoadType.incoming // ✅ Especificar el tipo explícitamente
         )
+        
+        isLoading = false
+        
+        lastSavedTotal = totalToSave
         
         // Limpiar formulario después de guardar
         clearAllPackages()
@@ -298,8 +382,10 @@ struct RegisterCargoView: View {
         notes = ""
         includePardoEggs = false
         
-        // Mostrar confirmación (puedes agregar un alert aquí)
-        print("Carga guardada exitosamente")
+        // Mostrar alerta de éxito
+        showingSuccessAlert = true
+        
+        print("✅ Carga guardada exitosamente: \(totalToSave) paquetes")
     }
     
     private func createPackageInventory(from categories: [PackageCategory]) -> PackageInventory {
@@ -313,6 +399,8 @@ struct RegisterCargoView: View {
     }
     
     private func clearAllPackages() {
+        print("🧹 Limpiando formulario...")
+        
         for categoryIndex in rosadoPackageCategories.indices {
             rosadoPackageCategories[categoryIndex].packages = Array(repeating: 0, count: 10)
             rosadoPackageCategories[categoryIndex].isVisible = false

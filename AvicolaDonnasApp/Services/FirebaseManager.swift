@@ -51,23 +51,35 @@ final class FirebaseManager: ObservableObject {
             try await firestore.collection(collection).addDocument(data: data)
         }
     }
-    
+
     func fetch<T: Codable>(_ type: T.Type, from collection: String, documentId: String) async throws -> T {
         let document = try await firestore.collection(collection).document(documentId).getDocument()
         
-        guard let data = document.data() else {
+        guard document.exists else {
             throw NSError(domain: "FirebaseManager", code: 404, userInfo: [NSLocalizedDescriptionKey: "Document not found"])
         }
         
-        return try Firestore.Decoder().decode(type, from: data)
+        // ✅ USAR document.data(as:) EN LUGAR DE Firestore.Decoder().decode
+        return try document.data(as: type)
     }
-    
+
     func fetchAll<T: Codable>(_ type: T.Type, from collection: String) async throws -> [T] {
         let snapshot = try await firestore.collection(collection).getDocuments()
         
-        return try snapshot.documents.compactMap { document in
-            try Firestore.Decoder().decode(type, from: document.data())
+        var results: [T] = []
+        
+        for document in snapshot.documents {
+            do {
+                // ✅ USAR document.data(as:) EN LUGAR DE Firestore.Decoder().decode
+                let item = try document.data(as: type)
+                results.append(item)
+            } catch {
+                print("❌ Error decodificando documento \(document.documentID): \(error)")
+                // Continuar con los demás documentos
+            }
         }
+        
+        return results
     }
     
     // MARK: - Métodos específicos para DailyStock
@@ -80,9 +92,20 @@ final class FirebaseManager: ObservableObject {
     
     func fetchDailyStock(for date: String) async throws -> DailyStock? {
         do {
-            return try await fetch(DailyStock.self, from: "daily_stocks", documentId: date)
+            let document = try await firestore.collection("daily_stocks").document(date).getDocument()
+            
+            guard document.exists else {
+                print("📍 No existe documento para fecha: \(date)")
+                return nil
+            }
+            
+            print("📍 Documento encontrado, decodificando...")
+            let stock = try document.data(as: DailyStock.self)
+            print("✅ Stock decodificado exitosamente")
+            return stock
+            
         } catch {
-            // Si no existe el documento, retornar nil en lugar de error
+            print("❌ Error específico en fetchDailyStock: \(error)")
             return nil
         }
     }
@@ -94,8 +117,13 @@ final class FirebaseManager: ObservableObject {
             .order(by: "date")
             .getDocuments()
         
-        return try snapshot.documents.compactMap { document in
-            try Firestore.Decoder().decode(DailyStock.self, from: document.data())
+        return snapshot.documents.compactMap { document in
+            do {
+                return try document.data(as: DailyStock.self)
+            } catch {
+                print("❌ Error decodificando DailyStock en rango: \(error)")
+                return nil
+            }
         }
     }
     
@@ -104,48 +132,118 @@ final class FirebaseManager: ObservableObject {
             .order(by: "date", descending: true)
             .getDocuments()
         
-        return try snapshot.documents.compactMap { document in
-            try Firestore.Decoder().decode(DailyStock.self, from: document.data())
+        return snapshot.documents.compactMap { document in
+            do {
+                return try document.data(as: DailyStock.self)
+            } catch {
+                print("❌ Error decodificando DailyStock: \(error)")
+                return nil
+            }
         }
     }
     
     // MARK: - Métodos específicos para CargoEntry
     // GUARDAR - Sin cambios, funciona bien
     func saveCargoEntry(_ entry: CargoEntry) async throws {
+        print("📤 Guardando CargoEntry...")
         try await save(entry, to: "cargo_entries")
+        print("✅ CargoEntry guardado exitosamente")
     }
 
-    // CONSULTA SIMPLIFICADA - Solo por fecha (SIN ORDENAR)
+    // ✅ CONSULTA CORREGIDA - Usar Firestore.Decoder
     func fetchCargoEntries(for date: String) async throws -> [CargoEntry] {
+        print("📍 Buscando CargoEntries para fecha: \(date)")
+        
         let snapshot = try await firestore.collection("cargo_entries")
             .whereField("date", isEqualTo: date)
             .getDocuments()
         
-        return try snapshot.documents.compactMap { document in
-            try Firestore.Decoder().decode(CargoEntry.self, from: document.data())
-        }.sorted { $0.timestamp > $1.timestamp } // Ordenar en Swift por ahora
+        print("📍 Encontrados \(snapshot.documents.count) documentos")
+        
+        var entries: [CargoEntry] = []
+        
+        for document in snapshot.documents {
+            do {
+                // ✅ USAR FIRESTORE.DECODER - NO document.data()
+                let entry = try document.data(as: CargoEntry.self)
+                entries.append(entry)
+                print("✅ CargoEntry decodificado: \(entry.supplier)")
+            } catch {
+                print("❌ Error decodificando CargoEntry: \(error)")
+                // Continuar con los demás documentos
+            }
+        }
+        
+        // Ordenar por timestamp
+        return entries.sorted { $0.timestamp > $1.timestamp }
     }
 
-    // CONSULTA SIMPLIFICADA - Sin filtros de rango, traer todo y filtrar en Swift
+    // ✅ CONSULTA CORREGIDA - Usar Firestore.Decoder
     func fetchCargoEntries(from startDate: String, to endDate: String) async throws -> [CargoEntry] {
+        print("📍 Buscando CargoEntries desde \(startDate) hasta \(endDate)")
+        
         let snapshot = try await firestore.collection("cargo_entries")
+            .whereField("date", isGreaterThanOrEqualTo: startDate)
+            .whereField("date", isLessThanOrEqualTo: endDate)
+            .order(by: "date")
             .getDocuments()
         
-        return try snapshot.documents.compactMap { document in
-            try Firestore.Decoder().decode(CargoEntry.self, from: document.data())
-        }.filter { entry in
-            entry.date >= startDate && entry.date <= endDate
-        }.sorted { $0.timestamp > $1.timestamp }
+        print("📍 Encontrados \(snapshot.documents.count) documentos en rango")
+        
+        var entries: [CargoEntry] = []
+        
+        for document in snapshot.documents {
+            do {
+                // ✅ USAR FIRESTORE.DECODER - NO document.data()
+                let entry = try document.data(as: CargoEntry.self)
+                entries.append(entry)
+            } catch {
+                print("❌ Error decodificando CargoEntry en rango: \(error)")
+                // Continuar con los demás documentos
+            }
+        }
+        
+        return entries.sorted { $0.timestamp > $1.timestamp }
     }
 
-    // CONSULTA SIMPLIFICADA - Traer todo sin ordenar
+    // ✅ CONSULTA CORREGIDA - Usar Firestore.Decoder
     func fetchAllCargoEntries() async throws -> [CargoEntry] {
+        print("📍 Buscando todos los CargoEntries")
+        
         let snapshot = try await firestore.collection("cargo_entries")
+            .order(by: "timestamp", descending: true)
             .getDocuments()
         
-        return try snapshot.documents.compactMap { document in
-            try Firestore.Decoder().decode(CargoEntry.self, from: document.data())
-        }.sorted { $0.timestamp > $1.timestamp }
+        print("📍 Encontrados \(snapshot.documents.count) documentos totales")
+        
+        var entries: [CargoEntry] = []
+        
+        for document in snapshot.documents {
+            do {
+                // ✅ USAR FIRESTORE.DECODER - NO document.data()
+                let entry = try document.data(as: CargoEntry.self)
+                entries.append(entry)
+            } catch {
+                print("❌ Error decodificando CargoEntry (todos): \(error)")
+                // Continuar con los demás documentos
+            }
+        }
+        
+        return entries
+    }
+
+    // ✅ NUEVO MÉTODO - Para obtener estadísticas del día
+    func fetchCargoEntriesStats(for date: String) async throws -> (movementCount: Int, uniqueSuppliers: Int) {
+        print("📊 Obteniendo estadísticas para fecha: \(date)")
+        
+        let entries = try await fetchCargoEntries(for: date)
+        
+        let movementCount = entries.count
+        let uniqueSuppliers = Set(entries.map { $0.supplier }).count
+        
+        print("📊 Estadísticas: \(movementCount) movimientos, \(uniqueSuppliers) proveedores únicos")
+        
+        return (movementCount: movementCount, uniqueSuppliers: uniqueSuppliers)
     }
     
     // MARK: - Métodos para AppSettings

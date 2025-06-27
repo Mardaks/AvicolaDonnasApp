@@ -7,9 +7,13 @@
 
 import SwiftUI
 import Charts
+import PDFKit
+import UniformTypeIdentifiers
 
 struct ReportsView: View {
-    @StateObject private var stockViewModel = StockViewModel()
+    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
+    @ObservedObject private var stockViewModel = StockViewModel.shared
+    
     @State private var selectedReportType: ReportType = .daily
     @State private var selectedDateRange: ReportDateRange = .lastWeek
     @State private var customStartDate = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
@@ -63,6 +67,14 @@ struct ReportsView: View {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.title3)
                         }
+                    } else {
+                        // ✅ AGREGAR BOTÓN DE REFRESH
+                        Button("Actualizar") {
+                            Task {
+                                await loadInitialData()
+                            }
+                        }
+                        .disabled(stockViewModel.isLoading)
                     }
                 }
             }
@@ -75,6 +87,9 @@ struct ReportsView: View {
         }
         .task {
             await loadInitialData()
+        }
+        .onAppear {
+            print("📱 ReportsView apareció")
         }
     }
     
@@ -140,6 +155,18 @@ struct ReportsView: View {
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
+            
+            // ✅ MOSTRAR ESTADO DE CARGA
+            if stockViewModel.isLoading {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Cargando datos...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 8)
+            }
         }
         .padding()
         .background(Color(.systemGray6))
@@ -192,11 +219,11 @@ struct ReportsView: View {
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(isGeneratingReport ? Color.gray : Color.blue)
+            .background(isGeneratingReport || stockViewModel.isLoading ? Color.gray : Color.blue)
             .foregroundColor(.white)
             .cornerRadius(12)
         }
-        .disabled(isGeneratingReport)
+        .disabled(isGeneratingReport || stockViewModel.isLoading)
     }
     
     // MARK: - Contenido del reporte
@@ -502,7 +529,7 @@ struct ReportsView: View {
     }
     
     @ViewBuilder
-    private func eggTypeCard(type: EggType, packages: Int, percentage: Double, trend: TrendDirection?) -> some View {
+    private func eggTypeCard(type: EggType, packages: Int, percentage: Double, trend: TrendDirection) -> some View {
         VStack(spacing: 12) {
             HStack {
                 Circle()
@@ -512,11 +539,9 @@ struct ReportsView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
-                if let trend = trend {
-                    Image(systemName: trend.icon)
-                        .font(.caption)
-                        .foregroundColor(trend.color)
-                }
+                Image(systemName: trend.icon)
+                    .font(.caption)
+                    .foregroundColor(trend.color)
             }
             
             VStack(spacing: 4) {
@@ -780,6 +805,13 @@ struct ReportsView: View {
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
+                
+                if stockViewModel.stockHistory.isEmpty {
+                    Text("No hay datos disponibles para generar reportes")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .padding(.top, 8)
+                }
             }
         }
         .padding(.vertical, 60)
@@ -810,6 +842,23 @@ struct ReportsView: View {
                         ForEach(ChartType.allCases, id: \.self) { type in
                             Label(type.displayName, systemImage: type.icon).tag(type)
                         }
+                    }
+                }
+                
+                // ✅ SECCIÓN DE INFORMACIÓN
+                Section("Información") {
+                    HStack {
+                        Text("Días en historial:")
+                        Spacer()
+                        Text("\(stockViewModel.stockHistory.count)")
+                            .foregroundColor(.blue)
+                    }
+                    
+                    HStack {
+                        Text("Total movimientos:")
+                        Spacer()
+                        Text("\(stockViewModel.allCargoEntries.count)")
+                            .foregroundColor(.blue)
                     }
                 }
             }
@@ -864,11 +913,14 @@ struct ReportsView: View {
     
     // MARK: - Functions
     private func loadInitialData() async {
+        print("🔄 Cargando datos iniciales para reportes...")
         await stockViewModel.loadStockHistory()
         await stockViewModel.loadAllCargoEntries()
+        print("✅ Datos cargados: \(stockViewModel.stockHistory.count) días, \(stockViewModel.allCargoEntries.count) movimientos")
     }
     
     private func generateReport() async {
+        print("📊 Generando reporte de tipo: \(selectedReportType.displayName)")
         isGeneratingReport = true
         
         let (startDate, endDate) = selectedDateRange.dateRange(
@@ -876,9 +928,12 @@ struct ReportsView: View {
             customEnd: customEndDate
         )
         
-        let startDateString = DateFormatter.dailyFormat.string(from: startDate)
-        let endDateString = DateFormatter.dailyFormat.string(from: endDate)
+        let startDateString = ReportDateFormatter.dailyFormat.string(from: startDate)
+        let endDateString = ReportDateFormatter.dailyFormat.string(from: endDate)
         
+        print("📅 Período: \(startDateString) - \(endDateString)")
+        
+        // ✅ USAR TU FUNCIÓN EXISTENTE DEL STOCKVIEWMODEL
         currentReportData = await stockViewModel.generateReport(
             type: selectedReportType,
             startDate: startDateString,
@@ -886,21 +941,412 @@ struct ReportsView: View {
         )
         
         isGeneratingReport = false
+        
+        if let reportData = currentReportData {
+            print("✅ Reporte generado exitosamente: \(reportData.totalPackages) paquetes totales")
+        } else {
+            print("❌ Error al generar reporte")
+        }
     }
     
     private func exportToPDF() {
-        // Implementar exportación a PDF
-        print("Exportando a PDF...")
+        guard let reportData = currentReportData else { return }
+        
+        print("📄 Exportando reporte a PDF...")
+        
+        let pdfData = generatePDFData(from: reportData)
+        
+        let activityController = UIActivityViewController(
+            activityItems: [pdfData],
+            applicationActivities: nil
+        )
+        
+        activityController.setValue("Reporte \(reportData.title)", forKey: "subject")
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootViewController = window.rootViewController {
+            
+            // Para iPad
+            if let popover = activityController.popoverPresentationController {
+                popover.sourceView = window
+                popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+            
+            rootViewController.present(activityController, animated: true)
+        }
     }
-    
+
     private func exportToExcel() {
-        // Implementar exportación a Excel
-        print("Exportando a Excel...")
+        guard let reportData = currentReportData else { return }
+        
+        print("📊 Exportando reporte a Excel...")
+        
+        let csvData = generateCSVData(from: reportData)
+        
+        let activityController = UIActivityViewController(
+            activityItems: [csvData],
+            applicationActivities: nil
+        )
+        
+        activityController.setValue("Datos \(reportData.title)", forKey: "subject")
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootViewController = window.rootViewController {
+            
+            // Para iPad
+            if let popover = activityController.popoverPresentationController {
+                popover.sourceView = window
+                popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+            
+            rootViewController.present(activityController, animated: true)
+        }
+    }
+
+    private func exportToImage() {
+        guard let reportData = currentReportData else { return }
+        
+        print("🖼️ Exportando reporte como imagen...")
+        
+        let image = generateReportImage(from: reportData)
+        
+        let activityController = UIActivityViewController(
+            activityItems: [image],
+            applicationActivities: nil
+        )
+        
+        activityController.setValue("Imagen \(reportData.title)", forKey: "subject")
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootViewController = window.rootViewController {
+            
+            // Para iPad
+            if let popover = activityController.popoverPresentationController {
+                popover.sourceView = window
+                popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+            
+            rootViewController.present(activityController, animated: true)
+        }
     }
     
-    private func exportToImage() {
-        // Implementar exportación de imagen
-        print("Exportando imagen...")
+    // MARK: - Generadores de Contenido
+
+    private func generatePDFData(from reportData: ReportData) -> Data {
+        let pageRect = CGRect(x: 0, y: 0, width: 612, height: 792) // Tamaño carta
+        let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
+        
+        let data = renderer.pdfData { context in
+            context.beginPage()
+            
+            var yPosition: CGFloat = 50
+            let margin: CGFloat = 50
+            let contentWidth = pageRect.width - (margin * 2)
+            
+            // Título del reporte
+            let titleAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 24),
+                .foregroundColor: UIColor.black
+            ]
+            
+            let titleText = reportData.title
+            let titleSize = titleText.size(withAttributes: titleAttributes)
+            titleText.draw(at: CGPoint(x: margin, y: yPosition), withAttributes: titleAttributes)
+            yPosition += titleSize.height + 20
+            
+            // Fecha de generación
+            let dateAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 12),
+                .foregroundColor: UIColor.gray
+            ]
+            
+            let dateText = "Generado el \(Date().displayString)"
+            dateText.draw(at: CGPoint(x: margin, y: yPosition), withAttributes: dateAttributes)
+            yPosition += 30
+            
+            // Período
+            let periodAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 14),
+                .foregroundColor: UIColor.black
+            ]
+            
+            let periodText = "Período: \(reportData.dateRange)"
+            periodText.draw(at: CGPoint(x: margin, y: yPosition), withAttributes: periodAttributes)
+            yPosition += 40
+            
+            // Métricas principales
+            let headerAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 18),
+                .foregroundColor: UIColor.black
+            ]
+            
+            "Métricas Principales".draw(at: CGPoint(x: margin, y: yPosition), withAttributes: headerAttributes)
+            yPosition += 30
+            
+            let metricAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 12),
+                .foregroundColor: UIColor.black
+            ]
+            
+            let metrics = [
+                "Total de Paquetes: \(reportData.totalPackages)",
+                "Peso Total: \(String(format: "%.1f kg", reportData.totalWeight))",
+                "Promedio Diario: \(reportData.averagePackagesPerDay) paquetes/día",
+                "Días Activos: \(reportData.activeDays)",
+                "Huevo Rosado: \(reportData.totalRosadoPackages) (\(String(format: "%.1f%%", reportData.rosadoPercentage)))",
+                "Huevo Pardo: \(reportData.totalPardoPackages) (\(String(format: "%.1f%%", reportData.pardoPercentage)))"
+            ]
+            
+            for metric in metrics {
+                metric.draw(at: CGPoint(x: margin, y: yPosition), withAttributes: metricAttributes)
+                yPosition += 20
+            }
+            
+            yPosition += 20
+            
+            // Insights
+            if !reportData.insights.isEmpty {
+                "Insights Automáticos".draw(at: CGPoint(x: margin, y: yPosition), withAttributes: headerAttributes)
+                yPosition += 30
+                
+                for insight in reportData.insights {
+                    let insightText = "• \(insight)"
+                    let textRect = CGRect(x: margin, y: yPosition, width: contentWidth, height: CGFloat.greatestFiniteMagnitude)
+                    let boundingRect = insightText.boundingRect(with: CGSize(width: contentWidth, height: .greatestFiniteMagnitude),
+                                                              options: .usesLineFragmentOrigin,
+                                                              attributes: metricAttributes,
+                                                              context: nil)
+                    
+                    insightText.draw(in: textRect, withAttributes: metricAttributes)
+                    yPosition += boundingRect.height + 10
+                }
+            }
+            
+            yPosition += 20
+            
+            // Recomendaciones
+            if !reportData.recommendations.isEmpty {
+                "Recomendaciones".draw(at: CGPoint(x: margin, y: yPosition), withAttributes: headerAttributes)
+                yPosition += 30
+                
+                for recommendation in reportData.recommendations {
+                    let recText = "• \(recommendation)"
+                    let textRect = CGRect(x: margin, y: yPosition, width: contentWidth, height: CGFloat.greatestFiniteMagnitude)
+                    let boundingRect = recText.boundingRect(with: CGSize(width: contentWidth, height: .greatestFiniteMagnitude),
+                                                           options: .usesLineFragmentOrigin,
+                                                           attributes: metricAttributes,
+                                                           context: nil)
+                    
+                    recText.draw(in: textRect, withAttributes: metricAttributes)
+                    yPosition += boundingRect.height + 10
+                }
+            }
+        }
+        
+        return data
+    }
+
+    private func generateCSVData(from reportData: ReportData) -> Data {
+        var csvContent = ""
+        
+        // Headers del reporte
+        csvContent += "REPORTE: \(reportData.title)\n"
+        csvContent += "PERÍODO: \(reportData.dateRange)\n"
+        csvContent += "GENERADO: \(Date().displayString)\n\n"
+        
+        // Métricas principales
+        csvContent += "MÉTRICAS PRINCIPALES\n"
+        csvContent += "Métrica,Valor\n"
+        csvContent += "Total Paquetes,\(reportData.totalPackages)\n"
+        csvContent += "Peso Total (kg),\(String(format: "%.1f", reportData.totalWeight))\n"
+        csvContent += "Promedio Diario,\(reportData.averagePackagesPerDay)\n"
+        csvContent += "Días Activos,\(reportData.activeDays)\n"
+        csvContent += "Huevo Rosado,\(reportData.totalRosadoPackages)\n"
+        csvContent += "Huevo Pardo,\(reportData.totalPardoPackages)\n"
+        csvContent += "% Rosado,\(String(format: "%.1f", reportData.rosadoPercentage))\n"
+        csvContent += "% Pardo,\(String(format: "%.1f", reportData.pardoPercentage))\n\n"
+        
+        // Datos diarios
+        csvContent += "DATOS DIARIOS\n"
+        csvContent += "Fecha,Total Paquetes,Peso Total (kg),Paquetes Rosado,Paquetes Pardo\n"
+        
+        for stock in reportData.dailyStocks.sorted(by: { $0.date < $1.date }) {
+            csvContent += "\(stock.date),\(stock.totalPackages),\(String(format: "%.1f", stock.totalWeight)),\(stock.rosadoPackages.getTotalPackages()),\(stock.pardoPackages.getTotalPackages())\n"
+        }
+        
+        csvContent += "\n"
+        
+        // Datos de proveedores
+        if !reportData.supplierData.isEmpty {
+            csvContent += "PROVEEDORES\n"
+            csvContent += "Proveedor,Total Paquetes,Entregas,Porcentaje\n"
+            
+            for supplier in reportData.supplierData {
+                csvContent += "\(supplier.name),\(supplier.totalPackages),\(supplier.deliveries),\(String(format: "%.1f", supplier.percentage))\n"
+            }
+            
+            csvContent += "\n"
+        }
+        
+        // Insights
+        if !reportData.insights.isEmpty {
+            csvContent += "INSIGHTS\n"
+            for insight in reportData.insights {
+                csvContent += "\"\(insight)\"\n"
+            }
+            csvContent += "\n"
+        }
+        
+        // Recomendaciones
+        if !reportData.recommendations.isEmpty {
+            csvContent += "RECOMENDACIONES\n"
+            for recommendation in reportData.recommendations {
+                csvContent += "\"\(recommendation)\"\n"
+            }
+        }
+        
+        return csvContent.data(using: .utf8) ?? Data()
+    }
+
+    private func generateReportImage(from reportData: ReportData) -> UIImage {
+        let imageSize = CGSize(width: 800, height: 1200)
+        let renderer = UIGraphicsImageRenderer(size: imageSize)
+        
+        return renderer.image { context in
+            let rect = CGRect(origin: .zero, size: imageSize)
+            
+            // Fondo
+            UIColor.systemBackground.setFill()
+            context.fill(rect)
+            
+            var yPosition: CGFloat = 40
+            let margin: CGFloat = 40
+            let contentWidth = imageSize.width - (margin * 2)
+            
+            // Título
+            let titleAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 28),
+                .foregroundColor: UIColor.label
+            ]
+            
+            let titleText = reportData.title
+            titleText.draw(at: CGPoint(x: margin, y: yPosition), withAttributes: titleAttributes)
+            yPosition += 50
+            
+            // Fecha y período
+            let subtitleAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 16),
+                .foregroundColor: UIColor.secondaryLabel
+            ]
+            
+            "Período: \(reportData.dateRange)".draw(at: CGPoint(x: margin, y: yPosition), withAttributes: subtitleAttributes)
+            yPosition += 25
+            
+            "Generado: \(Date().displayString)".draw(at: CGPoint(x: margin, y: yPosition), withAttributes: subtitleAttributes)
+            yPosition += 50
+            
+            // Métricas en cuadrícula
+            let metricAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 24),
+                .foregroundColor: UIColor.systemBlue
+            ]
+            
+            let labelAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 14),
+                .foregroundColor: UIColor.label
+            ]
+            
+            let metrics = [
+                ("Total Paquetes", "\(reportData.totalPackages)"),
+                ("Peso Total", String(format: "%.1f kg", reportData.totalWeight)),
+                ("Promedio Diario", "\(reportData.averagePackagesPerDay)"),
+                ("Días Activos", "\(reportData.activeDays)")
+            ]
+            
+            let cardWidth: CGFloat = (contentWidth - 20) / 2
+            let cardHeight: CGFloat = 80
+            
+            for (index, metric) in metrics.enumerated() {
+                let row = index / 2
+                let col = index % 2
+                
+                let x = margin + CGFloat(col) * (cardWidth + 20)
+                let y = yPosition + CGFloat(row) * (cardHeight + 20)
+                
+                // Fondo de la tarjeta
+                let cardRect = CGRect(x: x, y: y, width: cardWidth, height: cardHeight)
+                UIColor.systemGray6.setFill()
+                UIBezierPath(roundedRect: cardRect, cornerRadius: 8).fill()
+                
+                // Valor
+                metric.1.draw(at: CGPoint(x: x + 15, y: y + 15), withAttributes: metricAttributes)
+                
+                // Etiqueta
+                metric.0.draw(at: CGPoint(x: x + 15, y: y + 45), withAttributes: labelAttributes)
+            }
+            
+            yPosition += CGFloat((metrics.count + 1) / 2) * (cardHeight + 20) + 40
+            
+            // Distribución de huevos
+            let headerAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 20),
+                .foregroundColor: UIColor.label
+            ]
+            
+            "Distribución por Tipo".draw(at: CGPoint(x: margin, y: yPosition), withAttributes: headerAttributes)
+            yPosition += 40
+            
+            // Barras de porcentaje
+            let barHeight: CGFloat = 30
+            let rosadoWidth = contentWidth * CGFloat(reportData.rosadoPercentage / 100)
+            let pardoWidth = contentWidth * CGFloat(reportData.pardoPercentage / 100)
+            
+            // Barra rosado
+            UIColor.systemPink.setFill()
+            UIBezierPath(roundedRect: CGRect(x: margin, y: yPosition, width: rosadoWidth, height: barHeight), cornerRadius: 4).fill()
+            
+            "Rosado: \(reportData.totalRosadoPackages) (\(String(format: "%.1f%%", reportData.rosadoPercentage)))".draw(
+                at: CGPoint(x: margin + 10, y: yPosition + 5),
+                withAttributes: [.font: UIFont.systemFont(ofSize: 14), .foregroundColor: UIColor.white]
+            )
+            
+            yPosition += barHeight + 10
+            
+            // Barra pardo
+            UIColor.systemBrown.setFill()
+            UIBezierPath(roundedRect: CGRect(x: margin, y: yPosition, width: pardoWidth, height: barHeight), cornerRadius: 4).fill()
+            
+            "Pardo: \(reportData.totalPardoPackages) (\(String(format: "%.1f%%", reportData.pardoPercentage)))".draw(
+                at: CGPoint(x: margin + 10, y: yPosition + 5),
+                withAttributes: [.font: UIFont.systemFont(ofSize: 14), .foregroundColor: UIColor.white]
+            )
+            
+            yPosition += barHeight + 40
+            
+            // Insights (primeros 3)
+            if !reportData.insights.isEmpty {
+                "Insights Principales".draw(at: CGPoint(x: margin, y: yPosition), withAttributes: headerAttributes)
+                yPosition += 30
+                
+                let insightAttributes: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.systemFont(ofSize: 14),
+                    .foregroundColor: UIColor.label
+                ]
+                
+                for insight in reportData.insights.prefix(3) {
+                    let insightText = "• \(insight)"
+                    let textRect = CGRect(x: margin, y: yPosition, width: contentWidth, height: 60)
+                    insightText.draw(in: textRect, withAttributes: insightAttributes)
+                    yPosition += 25
+                }
+            }
+        }
     }
 }
 

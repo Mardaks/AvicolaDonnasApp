@@ -8,7 +8,9 @@
 import SwiftUI
 
 struct CurrentStockView: View {
-    @StateObject private var stockViewModel = StockViewModel()
+    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
+    @ObservedObject private var stockViewModel = StockViewModel.shared
+    
     @State private var isEditMode = false
     @State private var selectedEggType: EggType = .rosado
     @State private var expandedSections: Set<String> = []
@@ -57,6 +59,7 @@ struct CurrentStockView: View {
                     }
                     .foregroundColor(isEditMode ? .green : .blue)
                     .fontWeight(.semibold)
+                    .disabled(stockViewModel.isLoading)
                 }
                 
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -65,6 +68,14 @@ struct CurrentStockView: View {
                             cancelEditMode()
                         }
                         .foregroundColor(.red)
+                    } else {
+                        // ✅ AGREGAR BOTÓN DE REFRESH
+                        Button("Actualizar") {
+                            Task {
+                                await stockViewModel.refreshCurrentStock()
+                            }
+                        }
+                        .disabled(stockViewModel.isLoading)
                     }
                 }
             }
@@ -84,6 +95,9 @@ struct CurrentStockView: View {
         }
         .task {
             await stockViewModel.refreshCurrentStock()
+        }
+        .onAppear {
+            print("📱 CurrentStockView apareció")
         }
     }
     
@@ -109,6 +123,12 @@ struct CurrentStockView: View {
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(stockViewModel.isDayOpen ? .green : .red)
+                }
+                
+                // ✅ INDICADOR DE CARGA
+                if stockViewModel.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
                 }
             }
             
@@ -441,6 +461,7 @@ struct CurrentStockView: View {
     
     // MARK: - Functions
     private func enterEditMode() {
+        print("📝 Entrando en modo edición")
         isEditMode = true
         tempRosadoInventory = stockViewModel.getStockForType(.rosado)
         tempPardoInventory = stockViewModel.getStockForType(.pardo)
@@ -448,15 +469,28 @@ struct CurrentStockView: View {
         // Expandir todas las secciones en modo edición
         expandedSections.insert("stock_rosado")
         expandedSections.insert("stock_pardo")
+        
+        // ✅ EXPANDIR TAMBIÉN LAS SUBSECCIONES DE PESO QUE TIENEN STOCK
+        for weight in 7...13 {
+            if tempRosadoInventory.getPackagesForWeight(weight).reduce(0, +) > 0 {
+                expandedSections.insert("rosado_\(weight)")
+            }
+            if tempPardoInventory.getPackagesForWeight(weight).reduce(0, +) > 0 {
+                expandedSections.insert("pardo_\(weight)")
+            }
+        }
     }
     
     private func cancelEditMode() {
+        print("❌ Cancelando modo edición")
         isEditMode = false
         tempRosadoInventory = PackageInventory()
         tempPardoInventory = PackageInventory()
     }
     
     private func updateTempInventory(eggType: EggType, weight: Int, decimal: Int, increment: Int) {
+        print("🔄 Actualizando inventario temporal: \(eggType.displayName) \(weight).\(decimal) \(increment > 0 ? "+" : "")\(increment)")
+        
         let targetInventory = eggType == .rosado ? tempRosadoInventory : tempPardoInventory
         var packages = targetInventory.getPackagesForWeight(weight)
         packages[decimal] = max(0, packages[decimal] + increment)
@@ -469,6 +503,8 @@ struct CurrentStockView: View {
     }
     
     private func saveChanges() async {
+        print("💾 Guardando cambios en el stock...")
+        
         await stockViewModel.updateStockForType(.rosado, packages: tempRosadoInventory)
         await stockViewModel.updateStockForType(.pardo, packages: tempPardoInventory)
         
@@ -477,6 +513,8 @@ struct CurrentStockView: View {
         tempPardoInventory = PackageInventory()
         
         await stockViewModel.refreshCurrentStock()
+        
+        print("✅ Cambios guardados exitosamente")
     }
 }
 

@@ -12,7 +12,7 @@ import SwiftUI
 // MARK: - Modelo principal para el stock diario
 struct DailyStock: Codable, Identifiable {
     @DocumentID var id: String?
-    let date: String
+    var date: String
     var rosadoPackages: PackageInventory
     var pardoPackages: PackageInventory
     var totalPackages: Int
