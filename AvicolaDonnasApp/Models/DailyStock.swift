@@ -9,19 +9,21 @@ import Foundation
 import FirebaseFirestore
 import SwiftUI
 
-// MARK: - Modelo principal para el stock diario
+// MARK: - 📦 Modelo Central: Stock Diario del Negocio
+/// Representa el inventario completo de un día específico
+/// Este es el "estado actual" que se actualiza con cada movimiento
 struct DailyStock: Codable, Identifiable {
     @DocumentID var id: String?
-    var date: String
-    var rosadoPackages: PackageInventory
-    var pardoPackages: PackageInventory
-    var totalPackages: Int
-    var totalWeight: Double
-    var isClosed: Bool
-    var isCurrentDay: Bool
-    var closedAt: Date?
-    var createdAt: Date
-    var updatedAt: Date
+    var date: String                    // Fecha en formato "yyyy-MM-dd"
+    var rosadoPackages: PackageInventory // Inventario completo de huevo rosado
+    var pardoPackages: PackageInventory  // Inventario completo de huevo pardo
+    var totalPackages: Int              // Total calculado automáticamente
+    var totalWeight: Double             // Peso total calculado automáticamente
+    var isClosed: Bool                  // Indica si el día ya fue cerrado
+    var isCurrentDay: Bool              // Marca el día activo actual
+    var closedAt: Date?                 // Momento del cierre
+    var createdAt: Date                 // Cuándo se creó este registro
+    var updatedAt: Date                 // Última modificación
     
     init(id: String? = nil,
          date: String,
@@ -37,22 +39,27 @@ struct DailyStock: Codable, Identifiable {
         self.isCurrentDay = false
         self.closedAt = nil
         
-        // Inicializar fechas
+        // Inicializar fechas de auditoría
         let now = Date()
         self.createdAt = now
         self.updatedAt = now
         
-        updateTotals()
+        updateTotals() // Calcular totales iniciales
     }
     
+    // MARK: - 🔄 Sistema de Actualización Automática
+    /// Recalcula todos los totales y actualiza timestamp
+    /// Se llama automáticamente después de cada cambio
     mutating func updateTotals() {
         totalPackages = rosadoPackages.getTotalPackages() + pardoPackages.getTotalPackages()
         totalWeight = rosadoPackages.getTotalWeight() + pardoPackages.getTotalWeight()
         
-        // Actualizar fecha de modificación
+        // Actualizar fecha de modificación para auditoría
         updatedAt = Date()
     }
     
+    // MARK: - ➕ Métodos de Gestión de Inventario
+    /// Agrega nuevos paquetes al stock existente (suma al inventario actual)
     mutating func addLoad(_ packages: PackageInventory, type: EggType) {
         switch type {
         case .rosado:
@@ -63,6 +70,7 @@ struct DailyStock: Codable, Identifiable {
         updateTotals()
     }
     
+    /// Reemplaza completamente el inventario de un tipo (para ajustes)
     mutating func setPackagesForType(_ type: EggType, packages: PackageInventory) {
         switch type {
         case .rosado:
@@ -73,6 +81,7 @@ struct DailyStock: Codable, Identifiable {
         updateTotals()
     }
     
+    /// Obtiene el inventario actual de un tipo específico
     func getPackagesForType(_ type: EggType) -> PackageInventory {
         switch type {
         case .rosado:
@@ -83,11 +92,13 @@ struct DailyStock: Codable, Identifiable {
     }
 }
 
-// MARK: - Enum para tipos de huevo
+// MARK: - 🥚 Clasificación de Tipos de Huevo
+/// Define los dos tipos de huevo que maneja el negocio
 enum EggType: String, Codable, CaseIterable {
     case rosado = "rosado"
     case pardo = "pardo"
     
+    /// Nombres completos para mostrar en la interfaz
     var displayName: String {
         switch self {
         case .rosado: return "Huevo Rosado"
@@ -95,6 +106,7 @@ enum EggType: String, Codable, CaseIterable {
         }
     }
     
+    /// Colores personalizados definidos en Assets
     var color: Color {
         switch self {
         case .rosado: return Color("rosado")
@@ -102,6 +114,7 @@ enum EggType: String, Codable, CaseIterable {
         }
     }
     
+    /// Iconos para representar cada tipo visualmente
     var icon: String {
         switch self {
         case .rosado: return "circle.fill"

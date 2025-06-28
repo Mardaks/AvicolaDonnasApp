@@ -9,7 +9,8 @@ import SwiftUI
 
 struct RegisterCargoView: View {
     
-    // Estructura para organizar los datos de paquetes por tipo de huevo
+    // MARK: - 📊 Estructura de Datos Personalizada para UI
+    /// Organiza los paquetes por categorías de peso para facilitar la entrada
     struct PackageCategory {
         var weight: Int
         var name: String
@@ -23,7 +24,8 @@ struct RegisterCargoView: View {
         }
     }
     
-    // Estados para huevo rosado
+    // MARK: - 🥚 Estados Separados por Tipo de Huevo
+    /// Cada tipo tiene su propio conjunto de categorías de peso
     @State private var rosadoPackageCategories: [PackageCategory] = [
         PackageCategory(weight: 7),
         PackageCategory(weight: 8),
@@ -34,7 +36,7 @@ struct RegisterCargoView: View {
         PackageCategory(weight: 13)
     ]
     
-    // Estados para huevo pardo
+    /// Estados para huevo pardo
     @State private var pardoPackageCategories: [PackageCategory] = [
         PackageCategory(weight: 7),
         PackageCategory(weight: 8),
@@ -45,25 +47,23 @@ struct RegisterCargoView: View {
         PackageCategory(weight: 13)
     ]
     
-    // Control para mostrar sección de huevo pardo
-    @State private var includePardoEggs = false
+    // MARK: - 🎛️ Controles de la Interfaz
+    @State private var includePardoEggs = false         // Toggle para incluir huevo pardo
+    @State private var lastSavedTotal = 0               // Ultimo total guardado
+    @State private var supplier = ""                    // Proveedor seleccionado
+    @State private var notes = ""                       // Notas opcionales
+    @State private var showingSupplierSheet = false     // Modal de seleccion de proveedor
+    @State private var showingSaveConfirmation = false  // Confirmacion antes de guardar
+    @State private var showingSuccessAlert = false      // Alerta de exito
+    @State private var isLoading = false                // Estado de cargo
     
-    // Datos adicionales para el registro
-    @State private var lastSavedTotal = 0
-    @State private var supplier = ""
-    @State private var notes = ""
-    @State private var showingSupplierSheet = false
-    @State private var showingSaveConfirmation = false
-    @State private var showingSuccessAlert = false
-    @State private var isLoading = false
-    
-    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
     @ObservedObject private var stockViewModel = StockViewModel.shared
     
     var body: some View {
         NavigationView {
             Form {
-                // Sección de información general
+                // MARK: - 📋 Sección de Información General
+                /// Datos básicos del movimiento: proveedor y notas
                 Section("Información de la Carga") {
                     HStack {
                         Text("Proveedor:")
@@ -78,13 +78,14 @@ struct RegisterCargoView: View {
                         .lineLimit(2...4)
                 }
                 
-                // Toggle para incluir huevo pardo
+                // MARK: - 🔄 Control Dinámico de Tipos de Huevo
+                /// Toggle que habilita/deshabilita la sección de huevo pardo
                 Section {
                     Toggle("Incluir Huevo Pardo", isOn: $includePardoEggs)
                         .tint(Color("pardo"))
                 }
                 
-                // Sección de huevo rosado
+                /// Sección de huevo rosado (siempre visible)
                 eggTypeSection(
                     title: "Huevo Rosado",
                     color: Color("rosado"),
@@ -92,7 +93,7 @@ struct RegisterCargoView: View {
                     categories: $rosadoPackageCategories
                 )
                 
-                // Sección de huevo pardo (condicional)
+                /// Sección de huevo pardo (condicional)
                 if includePardoEggs {
                     eggTypeSection(
                         title: "Huevo Pardo",
@@ -102,7 +103,8 @@ struct RegisterCargoView: View {
                     )
                 }
                 
-                // Total general
+                // MARK: - 📊 Resumen Dinámico en Tiempo Real
+                /// Se actualiza automáticamente mientras el usuario ingresa datos
                 if hasVisibleCategories {
                     Section {
                         VStack(alignment: .leading, spacing: 8) {
@@ -117,7 +119,7 @@ struct RegisterCargoView: View {
                                     .foregroundColor(.green)
                             }
                             
-                            // Desglose por tipo
+                            /// Muestra solo los tipos que tienen datos
                             if totalRosadoPackages > 0 {
                                 HStack {
                                     Circle()
@@ -144,7 +146,8 @@ struct RegisterCargoView: View {
                                 .font(.subheadline)
                             }
                             
-                            // ✅ MOSTRAR PESO TOTAL ESTIMADO
+                            // MARK: - ⚖️ Cálculo Automático de Peso
+                            /// El sistema calcula automáticamente el peso basado en los pesos específicos
                             HStack {
                                 Text("Peso estimado:")
                                     .font(.subheadline)
@@ -159,7 +162,8 @@ struct RegisterCargoView: View {
                     }
                 }
                 
-                // Sección de acciones
+                // MARK: - 🎯 Sección de Acciones con Validación
+                /// Botones de guardar y limpiar con validaciones integradas
                 if hasVisibleCategories {
                     Section {
                         Button("Guardar Carga") {
@@ -170,7 +174,7 @@ struct RegisterCargoView: View {
                         .background(supplier.isEmpty || isLoading ? Color.gray : Color.blue)
                         .foregroundColor(.white)
                         .cornerRadius(8)
-                        .disabled(supplier.isEmpty || isLoading)
+                        .disabled(supplier.isEmpty || isLoading)    // Validacion automatica
                         
                         if isLoading {
                             HStack {
@@ -199,6 +203,7 @@ struct RegisterCargoView: View {
             .navigationBarTitleDisplayMode(.inline)
             .disabled(isLoading)
             .sheet(isPresented: $showingSupplierSheet) {
+                /// Reutiliza proveedores frecuentes y permite crear nuevos
                 SupplierSelectionView(
                     selectedSupplier: $supplier,
                     frequentSuppliers: stockViewModel.appSettings.frequentSuppliers
@@ -225,7 +230,8 @@ struct RegisterCargoView: View {
         }
     }
     
-    // MARK: - Vista reutilizable para cada tipo de huevo
+    // MARK: - Seccion Reutilizable para tipos de huevo
+    /// Maneja el sistema unico de pesos
     @ViewBuilder
     private func eggTypeSection(
         title: String,
@@ -233,7 +239,7 @@ struct RegisterCargoView: View {
         icon: String,
         categories: Binding<[PackageCategory]>
     ) -> some View {
-        // Sección de controles de visibilidad
+        /// El usuario puede activar/desactivar categorias de peso especificas
         Section {
             HStack {
                 Image(systemName: icon)
@@ -249,6 +255,7 @@ struct RegisterCargoView: View {
                 }
             }
             
+            /// Cada peso tiene su propio toggle y contador dinamico
             ForEach(categories.indices, id: \.self) { categoryIndex in
                 HStack {
                     if categories[categoryIndex].isVisible.wrappedValue {
@@ -275,7 +282,8 @@ struct RegisterCargoView: View {
             }
         }
         
-        // Secciones de paquetes (solo las visibles)
+        // MARK: - Entrada por Décimas
+        /// Solo muestra las categorías que el usuario activó
         ForEach(categories.indices, id: \.self) { categoryIndex in
             if categories[categoryIndex].isVisible.wrappedValue {
                 let categoryTotal = categories[categoryIndex].packages.wrappedValue.reduce(0, +)
@@ -293,7 +301,7 @@ struct RegisterCargoView: View {
                             .foregroundColor(color)
                         Text("\(categories[categoryIndex].name.wrappedValue) - Total: \(categoryTotal)")
                         
-                        // ✅ AGREGAR PESO ESTIMADO POR CATEGORÍA
+                        /// Muestra el paso estimado en tiempo real
                         Spacer()
                         let estimatedWeight = Double(categoryTotal) * Double(categories[categoryIndex].weight.wrappedValue)
                         Text(String(format: "%.1f kg", estimatedWeight))
@@ -305,7 +313,8 @@ struct RegisterCargoView: View {
         }
     }
     
-    // MARK: - Computed Properties
+    // MARK: - Propiedad calculadas
+    /// Se actualizan automaticamente mientras el usuario ingresa datos
     private var hasVisibleCategories: Bool {
         rosadoPackageCategories.contains(where: { $0.isVisible }) ||
         (includePardoEggs && pardoPackageCategories.contains(where: { $0.isVisible }))
@@ -323,7 +332,6 @@ struct RegisterCargoView: View {
         includePardoEggs ? getTotalForCategories(pardoPackageCategories) : 0
     }
     
-    // ✅ NUEVA PROPIEDAD CALCULADA - Peso total estimado
     private var estimatedTotalWeight: Double {
         let rosadoWeight = estimatedWeightForCategories(rosadoPackageCategories)
         let pardoWeight = includePardoEggs ? estimatedWeightForCategories(pardoPackageCategories) : 0.0
@@ -337,7 +345,6 @@ struct RegisterCargoView: View {
             .reduce(0, +)
     }
     
-    // ✅ NUEVA FUNCIÓN - Calcular peso estimado
     private func estimatedWeightForCategories(_ categories: [PackageCategory]) -> Double {
         return categories
             .filter { $0.isVisible }
@@ -347,7 +354,8 @@ struct RegisterCargoView: View {
             }
     }
     
-    // MARK: - Functions
+    // MARK: - Funciones
+    /// Convierte los datos de la UI al formato de PackageInventory y los guarda
     private func savePackages() async {
         guard !supplier.isEmpty else { return }
         
@@ -358,36 +366,37 @@ struct RegisterCargoView: View {
         isLoading = true
         
         let totalToSave = totalPackages
-        let suppplierToShow = supplier
         
+        /// Convierte las categorias de la UI al formato de PackageInventory
         let rosadoInventory = createPackageInventory(from: rosadoPackageCategories)
         let pardoInventory = includePardoEggs ? createPackageInventory(from: pardoPackageCategories) : PackageInventory()
         
-        // ✅ USAR LoadType EXPLÍCITAMENTE
+        /// Delega al StockViewModel que maneje toda la logica de negocio
         await stockViewModel.addCargoEntry(
             rosadoPackages: rosadoInventory,
             pardoPackages: pardoInventory,
             supplier: supplier,
             notes: notes.isEmpty ? nil : notes,
-            type: LoadType.incoming // ✅ Especificar el tipo explícitamente
+            type: LoadType.incoming
         )
         
         isLoading = false
         
         lastSavedTotal = totalToSave
         
-        // Limpiar formulario después de guardar
+        /// Resetea el formulario para una nueva entrada
         clearAllPackages()
         supplier = ""
         notes = ""
         includePardoEggs = false
         
-        // Mostrar alerta de éxito
+        /// Mostrar alerta de éxito
         showingSuccessAlert = true
         
         print("✅ Carga guardada exitosamente: \(totalToSave) paquetes")
     }
     
+    /// Convierte la estructura de UI al PackageInventory del modelo
     private func createPackageInventory(from categories: [PackageCategory]) -> PackageInventory {
         var inventory = PackageInventory()
         
@@ -414,6 +423,7 @@ struct RegisterCargoView: View {
 }
 
 // MARK: - Componente reutilizable para cada fila de paquete
+/// Control personalizado con botones ➕/➖ y validacion automatica
 struct PackageInputRow: View {
     let label: String
     @Binding var value: Int
@@ -426,7 +436,7 @@ struct PackageInputRow: View {
             
             Spacer()
             
-            // Botón de decrementar
+            /// Desactiva el boton ➖ cuando el valor es 0
             Button(action: {
                 if value > 0 {
                     value -= 1
@@ -439,7 +449,7 @@ struct PackageInputRow: View {
             .disabled(value <= 0)
             .buttonStyle(PlainButtonStyle())
             
-            // Campo de texto con validación
+            /// Solo acepta numeros positivos
             TextField("0", value: Binding(
                 get: { value },
                 set: { newValue in
@@ -453,7 +463,7 @@ struct PackageInputRow: View {
                 .frame(width: 60)
                 .multilineTextAlignment(.center)
             
-            // Botón de incrementar
+            /// Siempre activo el boton de ➕
             Button(action: {
                 value += 1
             }) {
@@ -468,6 +478,7 @@ struct PackageInputRow: View {
 }
 
 // MARK: - Vista para seleccionar proveedor
+/// Reutuliza proveedores frecuentes y permite crear nuevos
 struct SupplierSelectionView: View {
     @Binding var selectedSupplier: String
     let frequentSuppliers: [String]
@@ -527,7 +538,7 @@ struct PackageSummaryView: View {
                 .font(.headline)
                 .padding(.bottom, 5)
             
-            // Resumen de huevo rosado
+            /// Muestra un resumen de los paquetes en tiempo real
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
                     Circle()
@@ -556,7 +567,7 @@ struct PackageSummaryView: View {
                 }
             }
             
-            // Resumen de huevo pardo
+            /// Muestra un resumen de los paquetes en tiempo real
             if includePardo {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack {
@@ -587,7 +598,7 @@ struct PackageSummaryView: View {
                 }
             }
             
-            // Total general
+            /// Muestra total general actualizado en tiempo real
             Divider()
             HStack {
                 Text("Total General:")

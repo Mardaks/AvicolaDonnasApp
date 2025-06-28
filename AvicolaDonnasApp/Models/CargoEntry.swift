@@ -8,16 +8,18 @@
 import Foundation
 import FirebaseFirestore
 
-// MARK: - Modelo para cargas registradas (historial de movimientos)
+// MARK: - ✅ Modelo Principal: Registro de Movimientos de Carga
+/// Representa cada movimiento de huevos en el sistema (entradas, salidas, ajustes)
+/// Esta es la base del historial de todas las operaciones
 struct CargoEntry: Codable, Identifiable {
     @DocumentID var id: String?
-    var date: String
-    var rosadoPackages: PackageInventory
-    var pardoPackages: PackageInventory
-    var type: LoadType
-    var supplier: String
-    var notes: String?
-    var timestamp: Date
+    var date: String                    // Fecha del movimiento
+    var rosadoPackages: PackageInventory // Paquetes de huevo rosado
+    var pardoPackages: PackageInventory  // Paquetes de huevo pardo
+    var type: LoadType                   // Tipo de operación (carga/salida/ajuste)
+    var supplier: String                 // Nombre del proveedor
+    var notes: String?                   // Notas adicionales opcionales
+    var timestamp: Date                  // Momento exacto del registro
     
     init(id: String? = nil,
          date: String,
@@ -37,14 +39,19 @@ struct CargoEntry: Codable, Identifiable {
         self.timestamp = timestamp
     }
     
+    // MARK: - 🔢 Propiedades Calculadas para Resúmenes
+    /// Calcula automáticamente el total de paquetes de ambos tipos
     var totalPackages: Int {
         rosadoPackages.getTotalPackages() + pardoPackages.getTotalPackages()
     }
     
+    /// Calcula el peso total combinado de todo el movimiento
     var totalWeight: Double {
         rosadoPackages.getTotalWeight() + pardoPackages.getTotalWeight()
     }
     
+    // MARK: - 📅 Formateo de Fechas para UI
+    /// Convierte timestamp a formato legible: "25/06/2025"
     var displayDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "dd/MM/yyyy"
@@ -52,13 +59,16 @@ struct CargoEntry: Codable, Identifiable {
         return formatter.string(from: timestamp)
     }
     
+    /// Extrae solo la hora: "14:30"
     var displayTime: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: timestamp)
     }
     
-    // Resumen de tipos de huevo en el movimiento
+    // MARK: - 📊 Métodos de Presentación Inteligente
+    /// Genera un resumen automático del contenido para mostrar en listas
+    /// Ejemplo: "Rosado: 50 • Pardo: 30" o "Solo Rosado: 45 paquetes"
     var eggTypeSummary: String {
         let rosadoCount = rosadoPackages.getTotalPackages()
         let pardoCount = pardoPackages.getTotalPackages()
@@ -74,7 +84,7 @@ struct CargoEntry: Codable, Identifiable {
         }
     }
     
-    // Verifica si el movimiento tiene un tipo específico de huevo
+    /// Verifica si este movimiento incluye un tipo específico de huevo
     func hasEggType(_ eggType: EggType) -> Bool {
         switch eggType {
         case .rosado:
@@ -85,13 +95,15 @@ struct CargoEntry: Codable, Identifiable {
     }
 }
 
-// MARK: - Tipos de movimiento de carga
+// MARK: - 🏷️ Tipos de Operaciones del Negocio
+/// Define todas las operaciones posibles en el sistema
 enum LoadType: String, Codable, CaseIterable {
-    case incoming = "carga" // Carga entrante
-    case outgoing = "salida" // Salida de productos
-    case adjustment = "ajuste" // Ajuste de inventario
-    case dayClose = "cierre" // Cierre de día
+    case incoming = "carga"      // Llegada de huevos de proveedores
+    case outgoing = "salida"     // Venta o salida de huevos
+    case adjustment = "ajuste"   // Correcciones manuales
+    case dayClose = "cierre"     // Cierre automático del día
     
+    /// Nombres amigables para mostrar al usuario
     var displayName: String {
         switch self {
         case .incoming: return "Carga Entrante"
@@ -101,6 +113,7 @@ enum LoadType: String, Codable, CaseIterable {
         }
     }
     
+    /// Iconos SF Symbols para cada tipo de operación
     var icon: String {
         switch self {
         case .incoming: return "plus.circle.fill"
@@ -108,24 +121,5 @@ enum LoadType: String, Codable, CaseIterable {
         case .adjustment: return "pencil.circle.fill"
         case .dayClose: return "checkmark.circle.fill"
         }
-    }
-}
-
-// MARK: - Formatos de exportación
-enum ExportFormat: String, CaseIterable {
-    case pdf = "pdf"
-    case excel = "xlsx"
-    case csv = "csv"
-    
-    var displayName: String {
-        switch self {
-        case .pdf: return "PDF"
-        case .excel: return "Excel"
-        case .csv: return "CSV"
-        }
-    }
-    
-    var fileExtension: String {
-        return self.rawValue
     }
 }

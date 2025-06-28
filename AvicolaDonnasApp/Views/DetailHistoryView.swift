@@ -10,7 +10,6 @@ import SwiftUI
 struct DetailHistoryView: View {
     let dayStock: DailyStock
     
-    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
     @ObservedObject private var stockViewModel = StockViewModel.shared
     
     @State private var cargoEntries: [CargoEntry] = []
@@ -852,7 +851,7 @@ struct DetailHistoryView: View {
         .cornerRadius(6)
     }
     
-    // MARK: - Computed Properties
+    // MARK: - Propiedades calculadas
     private var uniqueSuppliersWithStats: [(name: String, packages: Int, deliveries: Int)] {
         let incomingEntries = cargoEntries.filter { $0.type == LoadType.incoming && !$0.supplier.isEmpty && $0.supplier != "Sistema" }
         
@@ -867,7 +866,7 @@ struct DetailHistoryView: View {
         }.sorted { $0.packages > $1.packages }
     }
     
-    // MARK: - Helper Functions
+    // MARK: - Funciones de ayuda
     private func movementColor(for type: LoadType) -> Color {
         switch type {
         case .incoming: return .green
@@ -926,7 +925,6 @@ struct DetailHistoryView: View {
         print("✅ Cargados \(cargoEntries.count) movimientos")
     }
     
-    // ✅ FUNCIÓN CORREGIDA - Usar FirebaseManager directamente
     private func fetchCargoEntries(for date: String) async -> [CargoEntry] {
         do {
             return try await FirebaseManager.shared.fetchCargoEntries(for: date)
@@ -939,6 +937,6 @@ struct DetailHistoryView: View {
 
 #Preview {
     NavigationView {
-        DetailHistoryView(dayStock: DailyStock(date: "2025-06-26"))
+        DetailHistoryView(dayStock: DailyStock(date: "2025-06-27"))
     }
 }

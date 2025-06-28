@@ -8,7 +8,7 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Report Enums
+// MARK: - Enums de Report
 enum ReportType: String, CaseIterable, Codable {
     case daily = "daily"
     case weekly = "weekly"
@@ -125,7 +125,7 @@ enum EggTypeFilter: CaseIterable {
     }
 }
 
-// MARK: - Report Data Models
+// MARK: - Modelo de datos de Report
 struct ReportData: Codable {
     let title: String
     let dateRange: String
@@ -348,7 +348,7 @@ struct SupplierData: Codable {
     let percentage: Double
 }
 
-// MARK: - Report DateFormatter Extensions
+// MARK: - Extenciones de formato de fecha para Reportes
 struct ReportDateFormatter {
     static let chartFormat: DateFormatter = {
         let formatter = DateFormatter()

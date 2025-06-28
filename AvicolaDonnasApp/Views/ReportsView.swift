@@ -11,7 +11,6 @@ import PDFKit
 import UniformTypeIdentifiers
 
 struct ReportsView: View {
-    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
     @ObservedObject private var stockViewModel = StockViewModel.shared
     
     @State private var selectedReportType: ReportType = .daily
@@ -68,7 +67,6 @@ struct ReportsView: View {
                                 .font(.title3)
                         }
                     } else {
-                        // ✅ AGREGAR BOTÓN DE REFRESH
                         Button("Actualizar") {
                             Task {
                                 await loadInitialData()
@@ -156,7 +154,6 @@ struct ReportsView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
             
-            // ✅ MOSTRAR ESTADO DE CARGA
             if stockViewModel.isLoading {
                 HStack {
                     ProgressView()
@@ -452,7 +449,6 @@ struct ReportsView: View {
                     AxisMarks(values: .automatic(desiredCount: 5))
                 }
             } else {
-                // Fallback para iOS 15
                 VStack {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                         .font(.system(size: 60))
@@ -464,7 +460,6 @@ struct ReportsView: View {
                 .frame(height: 200)
             }
             
-            // Leyenda
             HStack {
                 legendItem(color: .blue, label: "Total")
                 if reportData.hasRosadoData {
@@ -560,7 +555,6 @@ struct ReportsView: View {
                     .foregroundColor(.secondary)
             }
             
-            // Barra de progreso
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 2)
@@ -845,7 +839,6 @@ struct ReportsView: View {
                     }
                 }
                 
-                // ✅ SECCIÓN DE INFORMACIÓN
                 Section("Información") {
                     HStack {
                         Text("Días en historial:")
@@ -903,7 +896,7 @@ struct ReportsView: View {
         )
     }
     
-    // MARK: - Computed Properties
+    // MARK: - Propiedades calculadas
     private var uniqueSuppliers: [String] {
         Array(Set(stockViewModel.allCargoEntries
             .filter { !$0.supplier.isEmpty && $0.supplier != "Sistema" }
@@ -911,7 +904,7 @@ struct ReportsView: View {
             .sorted()
     }
     
-    // MARK: - Functions
+    // MARK: - Funciones
     private func loadInitialData() async {
         print("🔄 Cargando datos iniciales para reportes...")
         await stockViewModel.loadStockHistory()
@@ -933,7 +926,6 @@ struct ReportsView: View {
         
         print("📅 Período: \(startDateString) - \(endDateString)")
         
-        // ✅ USAR TU FUNCIÓN EXISTENTE DEL STOCKVIEWMODEL
         currentReportData = await stockViewModel.generateReport(
             type: selectedReportType,
             startDate: startDateString,

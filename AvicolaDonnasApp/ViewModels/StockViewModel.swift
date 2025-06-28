@@ -8,30 +8,34 @@
 import Foundation
 import SwiftUI
 
+// MARK: - 🧠 ViewModel Principal: Cerebro de Toda la Aplicación
+/// Coordina TODA la lógica de negocio entre la UI y Firebase
+/// Patrón MVVM: Mantiene la UI reactiva y separada de la lógica
 @MainActor
 final class StockViewModel: ObservableObject {
     
-    // MARK: - Singleton Pattern (NUEVA IMPLEMENTACIÓN)
     static let shared = StockViewModel()
+    private let firebaseManager = FirebaseManager.shared
     
-    // MARK: - Published Properties
-    @Published var currentDayStock: DailyStock?
-    @Published var stockHistory: [DailyStock] = []
-    @Published var todayCargoEntries: [CargoEntry] = []
-    @Published var allCargoEntries: [CargoEntry] = []
-    @Published var appSettings: AppSettings = AppSettings()
+    // MARK: - 📊 Estado Principal de la Aplicación
+    @Published var currentDayStock: DailyStock?       // Stock del día actual
+    @Published var stockHistory: [DailyStock] = []    // Historial completo
+    @Published var todayCargoEntries: [CargoEntry] = [] // Movimientos de hoy
+    @Published var allCargoEntries: [CargoEntry] = []   // Todos los movimientos
+    @Published var appSettings: AppSettings = AppSettings() // Configuración
     
-    // MARK: - UI State
-    @Published var isLoading = false
-    @Published var showingError = false
-    @Published var errorMessage = ""
-    @Published var selectedDate = Date()
+    // MARK: - 🎛️ Control de Interface y Estados
+    @Published var isLoading = false          // Indicador de carga
+    @Published var showingError = false       // Control de errores
+    @Published var errorMessage = ""          // Mensaje de error actual
+    @Published var selectedDate = Date()      // Fecha seleccionada en UI
     
-    // ✅ NUEVAS PROPIEDADES PARA ESTADÍSTICAS
-    @Published var todayMovementCount = 0
-    @Published var todaySupplierCount = 0
+    // MARK: - 📈 Estadísticas en Tiempo Real
+    @Published var todayMovementCount = 0     // Movimientos del día
+    @Published var todaySupplierCount = 0     // Proveedores únicos hoy
     
-    // MARK: - Computed Properties
+    // MARK: - 🔢 Propiedades Calculadas para UI
+    /// Estas propiedades se actualizan automáticamente cuando cambia el estado
     var currentDateString: String {
         Date().dailyString
     }
@@ -68,35 +72,33 @@ final class StockViewModel: ObservableObject {
         !(currentDayStock?.isClosed ?? true)
     }
     
-    // MARK: - Firebase Manager
-    private let firebaseManager = FirebaseManager.shared
-    
-    // MARK: - Initialization
     private init() {
         Task {
             await loadInitialData()
         }
     }
     
-    // MARK: - Initial Data Loading
+    // MARK: - 🚀 Inicialización: Carga Secuencial de Datos
+    /// Carga todos los datos necesarios al iniciar la app
+    /// Orden específico para optimizar la experiencia del usuario
     func loadInitialData() async {
         isLoading = true
         do {
             print("🔄 Cargando datos iniciales...")
             
-            // Cargar configuración
+            // 1. Configuración (rápida)
             await loadAppSettings()
             
-            // Cargar stock del día actual
+            // 2. Stock actual (prioritario para el usuario)
             await loadCurrentDayStock()
             
-            // Cargar historial
+            // 3. Historial (para navegación)
             await loadStockHistory()
             
-            // Cargar movimientos de hoy
+            // 4. Movimientos de hoy (para el dashboard)
             await loadTodayCargoEntries()
             
-            // ✅ CARGAR ESTADÍSTICAS
+            // 5. Estadísticas (calculadas)
             await loadTodayStatistics()
             
             print("✅ Datos iniciales cargados exitosamente")
@@ -107,14 +109,14 @@ final class StockViewModel: ObservableObject {
         isLoading = false
     }
     
-    // MARK: - App Settings Methods
+    // MARK: - ⚙️ Gestión de Configuración
     func loadAppSettings() async {
         do {
             if let settings = try await firebaseManager.fetchAppSettings() {
                 appSettings = settings
                 print("✅ Configuración cargada")
             } else {
-                // Primera vez, crear configuración inicial
+                // Primera vez: crear configuración inicial
                 appSettings = AppSettings()
                 try await firebaseManager.saveAppSettings(appSettings)
                 print("✅ Configuración inicial creada")
@@ -133,13 +135,15 @@ final class StockViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Current Day Stock Methods
+    // MARK: - 📦 Gestión de Stock Actual
+    /// Carga o crea el stock del día actual
+    /// Auto-creación si es el primer acceso del día
     func loadCurrentDayStock() async {
         do {
             let today = currentDateString
             currentDayStock = try await firebaseManager.fetchDailyStock(for: today)
             
-            // Si no existe, crear uno nuevo
+            // Si no existe, crear uno nuevo automáticamente
             if currentDayStock == nil {
                 currentDayStock = DailyStock(date: today)
                 currentDayStock?.isCurrentDay = true
@@ -153,6 +157,7 @@ final class StockViewModel: ObservableObject {
         }
     }
     
+    /// Actualiza el stock actual con recálculo automático
     func updateCurrentDayStock() async {
         guard var stock = currentDayStock else { return }
         
@@ -167,7 +172,9 @@ final class StockViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Cargo Entry Methods
+    // MARK: - 📋 Gestión Avanzada de Movimientos
+    /// Método principal para registrar cualquier tipo de movimiento
+    /// Actualiza automáticamente el stock y las estadísticas
     func addCargoEntry(rosadoPackages: PackageInventory = PackageInventory(),
                      pardoPackages: PackageInventory = PackageInventory(),
                      supplier: String,
@@ -185,17 +192,18 @@ final class StockViewModel: ObservableObject {
                 notes: notes
             )
             
-            // Guardar el movimiento
+            // 1. Guardar el movimiento en historial
             try await firebaseManager.saveCargoEntry(entry)
             print("✅ Movimiento guardado en Firebase")
             
-            // Actualizar el stock del día actual
+            // 2. Actualizar stock actual según el tipo de operación
             if var currentStock = currentDayStock {
                 if type == .incoming {
+                    // Sumar al inventario
                     currentStock.addLoad(rosadoPackages, type: .rosado)
                     currentStock.addLoad(pardoPackages, type: .pardo)
                 } else if type == .outgoing {
-                    // Para salidas, restar del stock
+                    // Restar del inventario (validando no quedar en negativo)
                     subtractFromStock(&currentStock.rosadoPackages, packages: rosadoPackages)
                     subtractFromStock(&currentStock.pardoPackages, packages: pardoPackages)
                     currentStock.updateTotals()
@@ -206,11 +214,11 @@ final class StockViewModel: ObservableObject {
                 print("✅ Stock actualizado")
             }
             
-            // Recargar movimientos y estadísticas
+            // 3. Recargar datos dependientes
             await loadTodayCargoEntries()
             await loadTodayStatistics()
             
-            // Agregar proveedor a la lista si no existe
+            // 4. Aprendizaje automático: agregar proveedor nuevo a lista frecuente
             if type == .incoming && !supplier.isEmpty && !appSettings.frequentSuppliers.contains(supplier) {
                 appSettings.frequentSuppliers.append(supplier)
                 try await firebaseManager.saveAppSettings(appSettings)
@@ -222,7 +230,8 @@ final class StockViewModel: ObservableObject {
         }
     }
     
-    // Método de conveniencia para agregar solo un tipo de huevo
+    /// Método de conveniencia para registrar un solo tipo de huevo
+    /// Simplifica el uso desde la UI
     func addCargoEntry(packages: PackageInventory,
                      eggType: EggType,
                      supplier: String,
@@ -256,7 +265,8 @@ final class StockViewModel: ObservableObject {
         }
     }
     
-    // ✅ NUEVO MÉTODO - Cargar estadísticas del día
+    // MARK: - 📊 Sistema de Estadísticas en Tiempo Real
+    /// Calcula estadísticas del día actual
     func loadTodayStatistics() async {
         do {
             print("📊 Cargando estadísticas del día...")
@@ -271,7 +281,7 @@ final class StockViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Stock History Methods
+    // MARK: - 📚 Gestión de Historial
     func loadStockHistory() async {
         do {
             stockHistory = try await firebaseManager.fetchAllDailyStocks()
@@ -290,6 +300,7 @@ final class StockViewModel: ObservableObject {
         }
     }
     
+    /// Actualiza stock de cualquier fecha con propagación inteligente
     func updateStockForDate(_ stock: DailyStock) async {
         do {
             var updatedStock = stock
@@ -297,22 +308,22 @@ final class StockViewModel: ObservableObject {
             
             try await firebaseManager.saveDailyStock(updatedStock)
             
-            // Actualizar en el historial
+            // Actualizar en memoria para UI reactiva
             if let index = stockHistory.firstIndex(where: { $0.date == stock.date }) {
                 stockHistory[index] = updatedStock
             }
             
-            // Si es el día actual, actualizar también
+            // Si es hoy, actualizar también el stock actual
             if stock.date == currentDateString {
                 currentDayStock = updatedStock
-                await loadTodayStatistics() // Actualizar estadísticas
+                await loadTodayStatistics() // Recalcular estadísticas
             }
         } catch {
             await handleError(error)
         }
     }
     
-    // MARK: - Stock Manipulation Methods
+    // MARK: - 🔧 Manipulación Directa de Stock
     func updateStockForType(_ eggType: EggType, packages: PackageInventory) async {
         guard var stock = currentDayStock else { return }
         
@@ -325,14 +336,15 @@ final class StockViewModel: ObservableObject {
         return stock.getPackagesForType(eggType)
     }
     
-    // MARK: - Day Close Methods
+    // MARK: - 🔒 Sistema de Cierre de Día
+    /// Cierra el día actual con registro automático
     func closeCurrentDay() async {
         guard var stock = currentDayStock else { return }
         
         do {
             print("🔒 Cerrando día actual...")
             
-            // Crear entrada de cierre
+            // Crear entrada automática de cierre
             let closeEntry = CargoEntry(
                 date: currentDateString,
                 rosadoPackages: stock.rosadoPackages,
@@ -344,7 +356,7 @@ final class StockViewModel: ObservableObject {
             
             try await firebaseManager.saveCargoEntry(closeEntry)
             
-            // Marcar día como cerrado
+            // Marcar como cerrado con timestamp
             stock.isClosed = true
             stock.isCurrentDay = false
             stock.closedAt = Date()
@@ -353,7 +365,7 @@ final class StockViewModel: ObservableObject {
             try await firebaseManager.saveDailyStock(stock)
             currentDayStock = stock
             
-            // Recargar datos
+            // Actualizar datos dependientes
             await loadStockHistory()
             await loadTodayCargoEntries()
             await loadTodayStatistics()
@@ -365,6 +377,7 @@ final class StockViewModel: ObservableObject {
         }
     }
     
+    /// Reabre un día cerrado (para correcciones)
     func reopenDay(_ date: String) async {
         do {
             print("🔓 Reabriendo día: \(date)")
@@ -394,7 +407,8 @@ final class StockViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Report Methods
+    // MARK: - 📈 Generador de Reportes Avanzados
+    /// Genera reportes con análisis completo de datos
     func generateReport(type: ReportType, startDate: String, endDate: String) async -> ReportData? {
         do {
             let dailyStocks = try await firebaseManager.fetchDailyStocks(from: startDate, to: endDate)
@@ -418,7 +432,8 @@ final class StockViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Statistics Methods
+    // MARK: - 📊 Análisis de Datos Inteligente
+    /// Genera estadísticas por tipo de huevo
     func getEggTypeStatistics() -> [(type: EggType, packages: Int, weight: Double)] {
         guard let stock = currentDayStock else { return [] }
         
@@ -428,12 +443,13 @@ final class StockViewModel: ObservableObject {
         ].filter { $0.packages > 0 }
     }
     
+    /// Distribución de pesos para gráficos
     func getWeightDistribution(for eggType: EggType) -> [(weight: Int, count: Int)] {
         let packages = getStockForType(eggType)
         return packages.getWeightSummary()
     }
     
-    // ✅ NUEVO MÉTODO - Obtener resumen de proveedores
+    /// Análisis de proveedores del día
     func getTodaySupplierSummary() -> [String: (packages: Int, deliveries: Int)] {
         let incomingEntries = todayCargoEntries.filter {
             $0.type == .incoming && !$0.supplier.isEmpty && $0.supplier != "Sistema"
@@ -458,14 +474,15 @@ final class StockViewModel: ObservableObject {
         return summary
     }
     
-    // ✅ NUEVO MÉTODO - Obtener proveedores únicos
+    /// Lista de proveedores únicos de hoy
     func getTodayUniqueSuppliers() -> Set<String> {
         return Set(todayCargoEntries
             .filter { $0.type == .incoming && !$0.supplier.isEmpty && $0.supplier != "Sistema" }
             .map { $0.supplier })
     }
     
-    // MARK: - Utility Methods
+    // MARK: - 🛠️ Métodos de Utilidad y Validación
+    /// Resta paquetes del stock evitando valores negativos
     private func subtractFromStock(_ stock: inout PackageInventory, packages: PackageInventory) {
         for weight in stock.packageWeights {
             let currentPackages = stock.getPackagesForWeight(weight)
@@ -480,6 +497,7 @@ final class StockViewModel: ObservableObject {
         }
     }
     
+    /// Valida que no haya valores negativos en paquetes
     func validatePackageInput(_ packages: PackageInventory) -> Bool {
         for weight in packages.packageWeights {
             let weightPackages = packages.getPackagesForWeight(weight)
@@ -490,19 +508,23 @@ final class StockViewModel: ObservableObject {
         return true
     }
     
+    /// Validación completa de entrada de carga
     func validateCargoEntry(rosadoPackages: PackageInventory, pardoPackages: PackageInventory) -> Bool {
         return validatePackageInput(rosadoPackages) && validatePackageInput(pardoPackages)
     }
     
+    /// Formatea peso con decimales para UI
     func getPackageDecimalString(_ weight: Int, decimal: Int) -> String {
         return "\(weight).\(decimal)"
     }
     
+    /// Verificación rápida de disponibilidad de stock
     func hasStockForType(_ eggType: EggType) -> Bool {
         return getStockForType(eggType).hasStock()
     }
     
-    // MARK: - Error Handling
+    // MARK: - ⚠️ Sistema Robusto de Manejo de Errores
+    /// Centraliza el manejo de errores con logging detallado
     private func handleError(_ error: Error) async {
         errorMessage = error.localizedDescription
         showingError = true
@@ -514,12 +536,14 @@ final class StockViewModel: ObservableObject {
         errorMessage = ""
     }
     
-    // MARK: - Refresh Methods
+    // MARK: - 🔄 Métodos de Actualización y Sincronización
+    /// Recarga completa de todos los datos
     func refreshAllData() async {
         print("🔄 Refrescando todos los datos...")
         await loadInitialData()
     }
     
+    /// Actualización rápida solo del estado actual
     func refreshCurrentStock() async {
         print("🔄 Refrescando stock actual...")
         await loadCurrentDayStock()

@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct RegisterEndDayView: View {
-    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
     @ObservedObject private var stockViewModel = StockViewModel.shared
+    
     @State private var showingCloseConfirmation = false
     @State private var showingReopenConfirmation = false
     @State private var closingNotes = ""
@@ -53,7 +53,6 @@ struct RegisterEndDayView: View {
                     }
                 }
                 
-                // ✅ AGREGAR BOTÓN DE REFRESH
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Actualizar") {
                         Task {
@@ -97,7 +96,7 @@ struct RegisterEndDayView: View {
             }
         }
         .task {
-            // ✅ CARGAR DATOS AL APARECER LA VISTA
+            // Cargar datos al apareces la vista
             await stockViewModel.refreshCurrentStock()
         }
         .onAppear {
@@ -166,7 +165,6 @@ struct RegisterEndDayView: View {
                     .fontWeight(.semibold)
                 Spacer()
                 
-                // ✅ MOSTRAR ESTADO DE CARGA
                 if stockViewModel.isLoading {
                     ProgressView()
                         .scaleEffect(0.8)
@@ -190,7 +188,6 @@ struct RegisterEndDayView: View {
                     color: .green
                 )
                 
-                // ✅ USAR PROPIEDADES CALCULADAS CORRECTAMENTE
                 summaryCard(
                     title: "Movimientos",
                     value: "\(stockViewModel.todayMovementCount)",
@@ -275,7 +272,6 @@ struct RegisterEndDayView: View {
                     
                     if stockViewModel.todayCargoEntries.count > 5 {
                         Button("Ver todos los movimientos (\(stockViewModel.todayCargoEntries.count))") {
-                            // Navegar a vista detallada
                         }
                         .font(.caption)
                         .foregroundColor(.blue)
@@ -569,7 +565,7 @@ struct RegisterEndDayView: View {
         }
     }
     
-    // MARK: - Functions
+    // MARK: - Funciones
     private func closeDay() async {
         isLoadingAction = true
         

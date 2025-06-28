@@ -7,30 +7,38 @@
 
 import Foundation
 
-// MARK: - Estructura para organizar todos los paquetes (7kg - 13kg)
+// MARK: - 📊 Sistema Avanzado de Inventario por Peso
+/// Organiza los paquetes por peso exacto (7.0kg hasta 13.9kg)
+/// Cada array representa las décimas: [7.0, 7.1, 7.2, ..., 7.9]
+/// Esta es la estructura que hace único al sistema
 struct PackageInventory: Codable {
-    var kg7: [Int] = Array(repeating: 0, count: 10) // 7.0 a 7.9
-    var kg8: [Int] = Array(repeating: 0, count: 10) // 8.0 a 8.9
-    var kg9: [Int] = Array(repeating: 0, count: 10) // 9.0 a 9.9
-    var kg10: [Int] = Array(repeating: 0, count: 10) // 10.0 a 10.9
-    var kg11: [Int] = Array(repeating: 0, count: 10) // 11.0 a 11.9
-    var kg12: [Int] = Array(repeating: 0, count: 10) // 12.0 a 12.9
-    var kg13: [Int] = Array(repeating: 0, count: 10) // 13.0 a 13.9
+    var kg7: [Int] = Array(repeating: 0, count: 10)  // 7.0kg a 7.9kg
+    var kg8: [Int] = Array(repeating: 0, count: 10)  // 8.0kg a 8.9kg
+    var kg9: [Int] = Array(repeating: 0, count: 10)  // 9.0kg a 9.9kg
+    var kg10: [Int] = Array(repeating: 0, count: 10) // 10.0kg a 10.9kg
+    var kg11: [Int] = Array(repeating: 0, count: 10) // 11.0kg a 11.9kg
+    var kg12: [Int] = Array(repeating: 0, count: 10) // 12.0kg a 12.9kg
+    var kg13: [Int] = Array(repeating: 0, count: 10) // 13.0kg a 13.9kg
     
-    // Computed properties para facilitar cálculos
+    // MARK: - 🔍 Propiedades para Cálculos Automáticos
+    /// Agrupa todos los arrays para facilitar iteraciones
     var allPackages: [[Int]] {
         [kg7, kg8, kg9, kg10, kg11, kg12, kg13]
     }
     
+    /// Lista de pesos base para cálculos
     var packageWeights: [Int] {
         [7, 8, 9, 10, 11, 12, 13]
     }
     
-    // Métodos de utilidad
+    // MARK: - 🧮 Métodos de Cálculo Inteligente
+    /// Cuenta todos los paquetes sin importar el peso
     func getTotalPackages() -> Int {
         allPackages.flatMap { $0 }.reduce(0, +)
     }
     
+    /// Calcula el peso total real considerando el peso específico de cada paquete
+    /// Ejemplo: 5 paquetes de 7kg + 3 paquetes de 8kg = 35kg + 24kg = 59kg
     func getTotalWeight() -> Double {
         var total: Double = 0
         for (index, packages) in allPackages.enumerated() {
@@ -41,6 +49,8 @@ struct PackageInventory: Codable {
         return total
     }
     
+    /// Obtiene el total de paquetes de un peso específico
+    /// Suma todas las décimas: 7.0 + 7.1 + 7.2 + ... + 7.9
     func getTotalForWeight(_ weight: Int) -> Int {
         switch weight {
         case 7: return kg7.reduce(0, +)
@@ -54,9 +64,8 @@ struct PackageInventory: Codable {
         }
     }
     
-    // MÉTODOS PARA AGREGAR CARGA
-    
-    // Método original - mantener compatibilidad
+    // MARK: - ➕ Sistema de Adición de Inventario
+    /// Método principal para agregar nuevos paquetes al inventario existente
     mutating func addLoad(_ newLoad: PackageInventory) {
         for i in 0..<10 {
             kg7[i] += newLoad.kg7[i]
@@ -69,13 +78,13 @@ struct PackageInventory: Codable {
         }
     }
     
-    // NUEVO MÉTODO - Para compatibilidad con DailyStock
+    /// Alias más claro para el método anterior
     mutating func addPackages(_ newPackages: PackageInventory) {
-        // Este método es igual que addLoad, pero con nombre diferente
         addLoad(newPackages)
     }
     
-    // Método para obtener array por peso
+    // MARK: - 🔧 Métodos de Acceso y Modificación
+    /// Obtiene el array completo de décimas para un peso específico
     func getPackagesForWeight(_ weight: Int) -> [Int] {
         switch weight {
         case 7: return kg7
@@ -89,7 +98,7 @@ struct PackageInventory: Codable {
         }
     }
     
-    // Método para actualizar array por peso
+    /// Actualiza completamente el array de un peso específico
     mutating func setPackagesForWeight(_ weight: Int, packages: [Int]) {
         guard packages.count == 10 else { return }
         switch weight {
@@ -104,12 +113,14 @@ struct PackageInventory: Codable {
         }
     }
     
-    // Método para verificar si hay stock
+    // MARK: - 📈 Métodos de Análisis y Reportes
+    /// Verifica rápidamente si hay inventario disponible
     func hasStock() -> Bool {
         return getTotalPackages() > 0
     }
     
-    // Método para obtener un resumen por peso
+    /// Genera un resumen compacto solo de los pesos que tienen stock
+    /// Útil para reportes y vistas de resumen
     func getWeightSummary() -> [(weight: Int, count: Int)] {
         return packageWeights.map { weight in
             (weight: weight, count: getTotalForWeight(weight))

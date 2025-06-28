@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct HistoryView: View {
-    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
     @ObservedObject private var stockViewModel = StockViewModel.shared
     
     @State private var selectedSegment = 0 // 0: Por días, 1: Por movimientos
@@ -21,7 +20,6 @@ struct HistoryView: View {
     @State private var showingFilters = false
     @State private var showingDatePicker = false
     
-    // Datos filtrados
     @State private var filteredDailyStocks: [DailyStock] = []
     @State private var filteredCargoEntries: [CargoEntry] = []
     
@@ -58,7 +56,6 @@ struct HistoryView: View {
                     }
                 }
                 
-                // ✅ AGREGAR BOTÓN DE REFRESH
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Actualizar") {
                         Task {
@@ -83,7 +80,7 @@ struct HistoryView: View {
         }
     }
     
-    // MARK: - Segmented Control
+    // MARK: - Control de Segmentos
     @ViewBuilder
     private var segmentedControl: some View {
         Picker("Vista", selection: $selectedSegment) {
@@ -630,7 +627,7 @@ struct HistoryView: View {
         }
     }
     
-    // MARK: - Computed Properties
+    // MARK: - Propiedades calculadas
     private var groupedMovements: [String: [CargoEntry]] {
         Dictionary(grouping: filteredCargoEntries) { $0.date }
     }
@@ -655,7 +652,7 @@ struct HistoryView: View {
             .sorted()
     }
     
-    // MARK: - Helper Functions
+    // MARK: - Funciones de ayuda
     private func movementColor(for type: LoadType) -> Color {
         switch type {
         case .incoming: return .green
@@ -766,7 +763,7 @@ struct HistoryView: View {
     }
 }
 
-// MARK: - Supporting Types
+// MARK: - Tipos rango de fecha para filtro
 enum DateRange: CaseIterable {
     case today, yesterday, lastWeek, lastMonth, last3Months, custom
     

@@ -77,7 +77,6 @@ struct HomeView: View {
             }
         }
         .onAppear {
-            // Primero probar conectividad básica
             Task {                
                 // Probar Firebase
                 do {

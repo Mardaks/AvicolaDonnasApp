@@ -7,28 +7,34 @@
 
 import SwiftUI
 
+// MARK: - 📊 Vista Principal: Pantalla de Stock Actual
+/// Esta es la pantalla central donde los usuarios ven TODO su inventario
+/// Demuestra el patrón MVVM en acción con reactividad completa
 struct CurrentStockView: View {
-    // ✅ USAR SINGLETON EN LUGAR DE CREAR NUEVA INSTANCIA
     @ObservedObject private var stockViewModel = StockViewModel.shared
     
-    @State private var isEditMode = false
-    @State private var selectedEggType: EggType = .rosado
-    @State private var expandedSections: Set<String> = []
-    @State private var showingUpdateConfirmation = false
-    @State private var tempRosadoInventory = PackageInventory()
-    @State private var tempPardoInventory = PackageInventory()
+    // MARK: - 🎛️ Estados Locales de la Vista
+    @State private var isEditMode = false                    // Control del modo edición
+    @State private var selectedEggType: EggType = .rosado    // Tipo seleccionado
+    @State private var expandedSections: Set<String> = []    // Secciones expandidas
+    @State private var showingUpdateConfirmation = false     // Confirmación de guardado
+    @State private var tempRosadoInventory = PackageInventory() // Inventario temporal para edición
+    @State private var tempPardoInventory = PackageInventory()  // Inventario temporal para edición
     
     var body: some View {
         NavigationView {
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    // Header con resumen general
+                    // MARK: - 📈 Header Inteligente con Resumen
+                    /// Muestra automáticamente el estado actual del día
                     stockSummaryHeader
                     
-                    // Estadísticas por tipo de huevo
+                    // MARK: - 🥚 Estadísticas por Tipo de Huevo
+                    /// Cards reactivas que se actualizan automáticamente
                     eggTypeStatistics
                     
-                    // Stock detallado por tipo de huevo
+                    // MARK: - 📦 Stock Detallado Expandible
+                    /// Sistema de acordeón que muestra solo lo necesario
                     if stockViewModel.hasStockForType(.rosado) || isEditMode {
                         eggTypeStockSection(for: .rosado)
                     }
@@ -37,7 +43,8 @@ struct CurrentStockView: View {
                         eggTypeStockSection(for: .pardo)
                     }
                     
-                    // Si no hay stock de ningún tipo
+                    // MARK: - 🔍 Estado Vacío Inteligente
+                    /// Solo se muestra cuando realmente no hay inventario
                     if !stockViewModel.hasStockForType(.rosado) && !stockViewModel.hasStockForType(.pardo) && !isEditMode {
                         emptyStockView
                     }
@@ -49,6 +56,8 @@ struct CurrentStockView: View {
             .navigationTitle("Stock Actual")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // MARK: - 🛠️ Barra de Herramientas Inteligente
+                /// Cambia dinámicamente según el modo actual
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(isEditMode ? "Guardar" : "Editar") {
                         if isEditMode {
@@ -69,7 +78,6 @@ struct CurrentStockView: View {
                         }
                         .foregroundColor(.red)
                     } else {
-                        // ✅ AGREGAR BOTÓN DE REFRESH
                         Button("Actualizar") {
                             Task {
                                 await stockViewModel.refreshCurrentStock()
@@ -80,6 +88,8 @@ struct CurrentStockView: View {
                 }
             }
             .refreshable {
+                // MARK: - 🔄 Pull-to-Refresh Nativo
+                /// Actualización manual del usuario
                 await stockViewModel.refreshCurrentStock()
             }
             .alert("Confirmar Actualización", isPresented: $showingUpdateConfirmation) {
@@ -94,6 +104,8 @@ struct CurrentStockView: View {
             }
         }
         .task {
+            // MARK: - ⚡ Carga Automática al Aparecer
+            /// Se ejecuta automáticamente cuando aparece la vista
             await stockViewModel.refreshCurrentStock()
         }
         .onAppear {
@@ -101,11 +113,12 @@ struct CurrentStockView: View {
         }
     }
     
-    // MARK: - Header con resumen general
+    // MARK: - 📊 Header Dinámico con Estado del Día
+    /// Diseño responsivo que muestra el resumen más importante
     @ViewBuilder
     private var stockSummaryHeader: some View {
         VStack(spacing: 16) {
-            // Fecha actual
+            // Fecha y estado del día
             HStack {
                 Image(systemName: "calendar")
                     .foregroundColor(.blue)
@@ -114,7 +127,8 @@ struct CurrentStockView: View {
                     .fontWeight(.semibold)
                 Spacer()
                 
-                // Estado del día
+                // MARK: - 🚦 Indicador Visual de Estado
+                /// Verde = Abierto, Rojo = Cerrado
                 HStack {
                     Circle()
                         .fill(stockViewModel.isDayOpen ? .green : .red)
@@ -125,14 +139,14 @@ struct CurrentStockView: View {
                         .foregroundColor(stockViewModel.isDayOpen ? .green : .red)
                 }
                 
-                // ✅ INDICADOR DE CARGA
                 if stockViewModel.isLoading {
                     ProgressView()
                         .scaleEffect(0.8)
                 }
             }
             
-            // Tarjetas de resumen
+            // MARK: - 🎯 Cards de Resumen Principales
+            /// Datos más importantes: Total de paquetes y peso
             HStack(spacing: 12) {
                 summaryCard(
                     title: "Total Paquetes",
@@ -177,7 +191,8 @@ struct CurrentStockView: View {
         .cornerRadius(8)
     }
     
-    // MARK: - Estadísticas por tipo de huevo
+    // MARK: - 🥚 Sistema de Estadísticas por Tipo
+    /// Distribución automática entre huevo rosado y pardo
     @ViewBuilder
     private var eggTypeStatistics: some View {
         VStack(spacing: 12) {
@@ -203,6 +218,8 @@ struct CurrentStockView: View {
     
     @ViewBuilder
     private func eggTypeStatCard(for eggType: EggType) -> some View {
+        // MARK: - 🧮 Cálculos Automáticos en Tiempo Real
+        /// Estos valores se actualizan automáticamente cuando cambia el stock
         let packages = stockViewModel.getStockForType(eggType).getTotalPackages()
         let weight = stockViewModel.getStockForType(eggType).getTotalWeight()
         let hasStock = packages > 0
@@ -252,9 +269,12 @@ struct CurrentStockView: View {
         )
     }
     
-    // MARK: - Sección de stock por tipo de huevo
+    // MARK: - 📦 Sistema de Acordeón Inteligente para Stock Detallado
+    /// Muestra inventario completo con mi sistema único de pesos con décimas
     @ViewBuilder
     private func eggTypeStockSection(for eggType: EggType) -> some View {
+        // MARK: - 🔄 Lógica de Inventario Temporal vs Real
+        /// En modo edición usa inventario temporal, sino usa el real
         let inventory = isEditMode ?
             (eggType == .rosado ? tempRosadoInventory : tempPardoInventory) :
             stockViewModel.getStockForType(eggType)
@@ -262,7 +282,8 @@ struct CurrentStockView: View {
         let isExpanded = expandedSections.contains(sectionId)
         
         VStack(spacing: 0) {
-            // Header de la sección
+            // MARK: - 🎯 Header Expandible con Totales
+            /// Tap para expandir/contraer + resumen rápido
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     if isExpanded {
@@ -305,7 +326,8 @@ struct CurrentStockView: View {
             }
             .buttonStyle(PlainButtonStyle())
             
-            // Contenido expandible
+            // MARK: - 📋 Contenido Expandible: Mi Sistema de Pesos
+            /// Aquí se muestra mi innovación: inventario por peso específico
             if isExpanded {
                 LazyVStack(spacing: 12) {
                     ForEach(7...13, id: \.self) { weight in
@@ -324,6 +346,8 @@ struct CurrentStockView: View {
         )
     }
     
+    // MARK: - Sección de Peso con Décimas
+    /// Cada peso (7kg, 8kg, etc.) se subdivide en décimas (7.0, 7.1, 7.2...)
     @ViewBuilder
     private func weightSection(for weight: Int, eggType: EggType, inventory: PackageInventory) -> some View {
         let packages = inventory.getPackagesForWeight(weight)
@@ -332,7 +356,7 @@ struct CurrentStockView: View {
         let isWeightExpanded = expandedSections.contains(weightSectionId)
         
         VStack(spacing: 0) {
-            // Header del peso
+            // Header del peso con total
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     if isWeightExpanded {
@@ -367,7 +391,8 @@ struct CurrentStockView: View {
             }
             .buttonStyle(PlainButtonStyle())
             
-            // Detalles por decimal
+            // MARK: - Décimas de Peso
+            /// Grid de 2 columnas mostrando cada décima específica
             if isWeightExpanded {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
                     ForEach(0..<10, id: \.self) { decimal in
@@ -386,6 +411,8 @@ struct CurrentStockView: View {
         }
     }
     
+    // MARK: - 🔢 Fila Individual de Décimas con Control de Edición
+    /// Cada peso específico (ej: 7.3kg) con botones +/- en modo edición
     @ViewBuilder
     private func decimalRow(weight: Int, decimal: Int, value: Int, eggType: EggType, isEditable: Bool) -> some View {
         HStack {
@@ -397,6 +424,8 @@ struct CurrentStockView: View {
             Spacer()
             
             if isEditable {
+                // MARK: - ✏️ Controles de Edición Intuitivos
+                /// Botones +/- con validación automática
                 HStack(spacing: 8) {
                     Button(action: {
                         updateTempInventory(eggType: eggType, weight: weight, decimal: decimal, increment: -1)
@@ -437,7 +466,7 @@ struct CurrentStockView: View {
         )
     }
     
-    // MARK: - Vista vacía
+    // MARK: - 🗂️ Vista de Estado Vacío
     @ViewBuilder
     private var emptyStockView: some View {
         VStack(spacing: 16) {
@@ -459,18 +488,20 @@ struct CurrentStockView: View {
         .padding(.vertical, 40)
     }
     
-    // MARK: - Functions
+    // MARK: - 🛠️ Funciones de Control de Estado
+    /// Gestión inteligente del modo edición con auto-expansión
     private func enterEditMode() {
         print("📝 Entrando en modo edición")
         isEditMode = true
         tempRosadoInventory = stockViewModel.getStockForType(.rosado)
         tempPardoInventory = stockViewModel.getStockForType(.pardo)
         
-        // Expandir todas las secciones en modo edición
+        // MARK: - 🎯 Auto-Expansión Inteligente
+        /// Expande automáticamente las secciones relevantes
         expandedSections.insert("stock_rosado")
         expandedSections.insert("stock_pardo")
         
-        // ✅ EXPANDIR TAMBIÉN LAS SUBSECCIONES DE PESO QUE TIENEN STOCK
+        // Expandir subsecciones que tienen stock
         for weight in 7...13 {
             if tempRosadoInventory.getPackagesForWeight(weight).reduce(0, +) > 0 {
                 expandedSections.insert("rosado_\(weight)")
@@ -488,6 +519,8 @@ struct CurrentStockView: View {
         tempPardoInventory = PackageInventory()
     }
     
+    // MARK: - 🔄 Actualización de Inventario Temporal
+    /// Actualiza el inventario temporal mientras el usuario edita
     private func updateTempInventory(eggType: EggType, weight: Int, decimal: Int, increment: Int) {
         print("🔄 Actualizando inventario temporal: \(eggType.displayName) \(weight).\(decimal) \(increment > 0 ? "+" : "")\(increment)")
         
@@ -502,6 +535,8 @@ struct CurrentStockView: View {
         }
     }
     
+    // MARK: - 💾 Persistencia de Cambios
+    /// Guarda los cambios temporales al ViewModel y luego a Firebase
     private func saveChanges() async {
         print("💾 Guardando cambios en el stock...")
         

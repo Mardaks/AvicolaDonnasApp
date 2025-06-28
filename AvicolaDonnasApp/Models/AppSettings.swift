@@ -16,8 +16,8 @@ struct AppSettings: Codable {
     var companyName: String
     var companyLogo: String?
     var frequentSuppliers: [String]
-    var defaultEggType: EggType // Tipo de huevo por defecto
-    var showBothEggTypes: Bool // Mostrar ambos tipos por defecto
+    var defaultEggType: EggType
+    var showBothEggTypes: Bool
     
     init() {
         self.currentDate = DateFormatter.dailyFormat.string(from: Date())
@@ -27,8 +27,8 @@ struct AppSettings: Codable {
         self.companyName = "Avícola Donna's"
         self.companyLogo = nil
         self.frequentSuppliers = []
-        self.defaultEggType = .rosado // Por defecto rosado ya que es más común
-        self.showBothEggTypes = false // Por defecto solo mostrar rosado
+        self.defaultEggType = .rosado
+        self.showBothEggTypes = false
     }
 }
 
